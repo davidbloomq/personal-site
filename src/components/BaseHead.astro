@@ -46,3 +46,14 @@ const { title, description } = Astro.props;
 <meta property="twitter:url" content={Astro.url} />
 <meta property="twitter:title" content={title} />
 <meta property="twitter:description" content={description} />
+
+<!-- Theme init (inline to prevent FOUC) -->
+<script is:inline>
+(function() {
+	var saved = localStorage.getItem('theme');
+	if (!saved) {
+		saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+	}
+	document.documentElement.dataset.theme = saved;
+})();
+</script>
