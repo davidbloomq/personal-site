@@ -9,6 +9,15 @@
         <title><xsl:value-of select="/rss/channel/title"/> — RSS Feed</title>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <script>
+          (function() {
+            var saved = localStorage.getItem('theme');
+            if (!saved) {
+              saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.dataset.theme = saved;
+          })();
+        </script>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
@@ -22,13 +31,30 @@
             max-width: 560px;
             margin: 0 auto;
           }
+          .rss-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 1.5rem;
+          }
           h1 {
             font-family: system-ui, -apple-system, sans-serif;
             font-size: 1.55rem;
             font-weight: 600;
-            margin-bottom: 1.5rem;
             line-height: 1;
+            margin: 0;
           }
+          .theme-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.6rem;
+            color: rgba(35, 34, 33, 0.5);
+            padding: 0;
+            line-height: 1;
+            transition: color 0.15s ease-in-out;
+          }
+          .theme-toggle:hover { color: #C46157; }
           .about {
             font-family: system-ui, -apple-system, sans-serif;
             font-size: 0.9rem;
@@ -81,11 +107,39 @@
             line-height: 1.45;
             margin-top: 0.2em;
           }
+          /* Dark mode */
+          [data-theme="dark"] body {
+            color: #e8e2dc;
+            background: #1a1817;
+          }
+          [data-theme="dark"] .about,
+          [data-theme="dark"] .label,
+          [data-theme="dark"] .post-date,
+          [data-theme="dark"] .post-desc {
+            color: rgba(168, 159, 148, 0.5);
+          }
+          [data-theme="dark"] .about a,
+          [data-theme="dark"] .post-title:hover,
+          [data-theme="dark"] .theme-toggle:hover {
+            color: #D4776E;
+          }
+          [data-theme="dark"] .about code {
+            background: #242120;
+          }
+          [data-theme="dark"] .post-title {
+            color: #e8e2dc;
+          }
+          [data-theme="dark"] .theme-toggle {
+            color: rgba(168, 159, 148, 0.5);
+          }
         </style>
       </head>
       <body>
         <div class="shell">
-          <h1><xsl:value-of select="/rss/channel/title"/></h1>
+          <div class="rss-header">
+            <h1><xsl:value-of select="/rss/channel/title"/></h1>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">●</button>
+          </div>
           <p class="about">
             This is an RSS feed. Copy the URL into your feed reader to subscribe.
             Visit <a href="https://aboutfeeds.com">About Feeds</a> to learn more.
@@ -103,6 +157,18 @@
             </div>
           </xsl:for-each>
         </div>
+        <script>
+          (function() {
+            var btn = document.getElementById('theme-toggle');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+              var current = document.documentElement.dataset.theme;
+              var next = current === 'dark' ? 'light' : 'dark';
+              document.documentElement.dataset.theme = next;
+              localStorage.setItem('theme', next);
+            });
+          })();
+        </script>
       </body>
     </html>
   </xsl:template>
