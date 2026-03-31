@@ -1,0 +1,147 @@
+---
+/**
+ * ASCII particle trail that follows the cursor.
+ * Spawns small ASCII characters at the mouse position that
+ * drift outward and fade. Overlays the entire page via
+ * pointer-events: none so it doesn't block interaction.
+ */
+---
+
+<canvas id="ascii-trail" class="ascii-trail"></canvas>
+
+<script>
+  const canvas = document.getElementById('ascii-trail') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d')!;
+
+  // Match device pixel ratio for crisp text
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.scale(dpr, dpr);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Plain ASCII — denser chars for fresh particles, sparser as they age
+  const charsByAge = '@#%=+*:;-,.';
+  const accentColor = [196, 97, 87]; // #C46157
+
+  interface Particle {
+    x: number;
+    y: number;
+    char: string;
+    life: number;
+    maxLife: number;
+    size: number;
+  }
+
+  const particles: Particle[] = [];
+  let mouseX = 0;
+  let mouseY = 0;
+  let prevMouseX = 0;
+  let prevMouseY = 0;
+  let mouseMoving = false;
+  let moveTimeout: number;
+
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    mouseMoving = true;
+    clearTimeout(moveTimeout);
+    moveTimeout = window.setTimeout(() => {
+      mouseMoving = false;
+    }, 200);
+  });
+
+  function spawnParticle() {
+    const maxLife = 60 + Math.random() * 50; // longer life — persistent trail
+
+    particles.push({
+      // Drop at cursor with spread perpendicular to movement
+      x: mouseX + (Math.random() - 0.5) * 8,
+      y: mouseY + (Math.random() - 0.5) * 8,
+      char: charsByAge[0], // will be updated each frame based on age
+      life: maxLife,
+      maxLife,
+      size: 9 + Math.random() * 4,
+    });
+  }
+
+  let frameCount = 0;
+
+  function frame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Spawn when moving — 1 particle per frame for a clean trail
+    const dx = mouseX - prevMouseX;
+    const dy = mouseY - prevMouseY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (mouseMoving && dist > 1) {
+      // Interpolate along the movement to fill gaps
+      const steps = Math.min(Math.floor(dist / 6), 4);
+      for (let s = 0; s <= steps; s++) {
+        const t = steps === 0 ? 1 : s / steps;
+        const origX = mouseX;
+        const origY = mouseY;
+        mouseX = prevMouseX + dx * t;
+        mouseY = prevMouseY + dy * t;
+        spawnParticle();
+        spawnParticle();
+        mouseX = origX;
+        mouseY = origY;
+      }
+    }
+
+    // Update and draw
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life--;
+
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+
+      // Age ratio 0 (fresh) → 1 (dying)
+      const age = 1 - p.life / p.maxLife;
+
+      // Pick character based on age — dense → sparse
+      const charIdx = Math.min(
+        Math.floor(age * charsByAge.length),
+        charsByAge.length - 1
+      );
+      p.char = charsByAge[charIdx];
+
+      // Fade out smoothly in the last 40% of life
+      const alpha = age < 0.6 ? 0.55 : 0.55 * (1 - (age - 0.6) / 0.4);
+
+      ctx.font = `${p.size}px "JetBrains Mono", "Fira Code", monospace`;
+      ctx.fillStyle = `rgba(${accentColor[0]}, ${accentColor[1]}, ${accentColor[2]}, ${alpha})`;
+      ctx.fillText(p.char, p.x, p.y);
+    }
+
+    prevMouseX = mouseX;
+    prevMouseY = mouseY;
+    frameCount++;
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+</script>
+
+<style>
+  .ascii-trail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9999;
+  }
+</style>

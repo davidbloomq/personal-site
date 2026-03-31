@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <defs>
+    <style>
+      .bg { fill: #faf8f8; }
+      .frame { fill: none; stroke: #23222140; stroke-width: 2; }
+      .col { fill: #ffffff; stroke: #23222126; stroke-width: 1.5; }
+      .label { font: 600 14px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; letter-spacing: 2px; fill: #23222180; }
+      .title { font: 700 34px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; fill: #000; }
+      .body { font: 18px Newsreader, Georgia, serif; fill: #23222180; }
+      .item { font: 22px Newsreader, Georgia, serif; fill: #000; }
+      .link { font: 16px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; fill: #C46157; }
+      .note { font: 13px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; fill: #23222166; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1200" height="700"/>
+
+  <!-- Content frame (wider, reduced side whitespace) -->
+  <rect class="frame" x="60" y="50" width="1080" height="600" rx="10"/>
+
+  <!-- 3-column grid: about | essays | links -->
+  <!-- left=240, gap=48, mid=504, gap=48, right=240  (fits inside 1080) -->
+  <rect class="col" x="90" y="170" width="240" height="420" rx="10"/>
+  <rect class="col" x="378" y="170" width="504" height="420" rx="10"/>
+  <rect class="col" x="930" y="170" width="240" height="420" rx="10"/>
+
+  <!-- Header anchored to the middle column but hanging slightly left -->
+  <text class="title" x="346" y="120">David Bloom</text>
+  <text class="note" x="346" y="145">Header sits in center column, shifted left (“hang”)</text>
+
+  <!-- About -->
+  <text class="label" x="118" y="220">ABOUT</text>
+  <text class="body" x="118" y="255">
+    <tspan x="118" dy="0">I study mathematics and philosophy.</tspan>
+    <tspan x="118" dy="26">I write about philosophy, AI,</tspan>
+    <tspan x="118" dy="26">and whatever else I find interesting.</tspan>
+  </text>
+
+  <!-- Essays -->
+  <text class="label" x="406" y="220">ESSAYS</text>
+  <text class="note" x="406" y="255">03.16.2026</text>
+  <text class="item" x="406" y="292">A Sample Essay</text>
+  <text class="note" x="406" y="330">…more essays appear here as you add them…</text>
+
+  <!-- Links -->
+  <text class="label" x="958" y="220">LINKS</text>
+  <text class="link" x="958" y="260">RSS</text>
+  <text class="link" x="958" y="296">Substack</text>
+  <text class="link" x="958" y="332">Email</text>
+</svg>
+

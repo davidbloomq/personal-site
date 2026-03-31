@@ -1,0 +1,217 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import FormattedDate from '../components/FormattedDate.astro';
+import AsciiCursorTrail from '../components/AsciiCursorTrail.astro';
+import { getCollection } from 'astro:content';
+import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
+
+const posts = (await getCollection('blog')).sort(
+	(a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+);
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
+	</head>
+	<body>
+		<AsciiCursorTrail />
+		<div class="home">
+			<div class="home-shell">
+				<header class="home-header">
+					<h1 class="home-title">David Bloom</h1>
+				</header>
+
+				<main class="home-main">
+					<section class="home-about">
+						<span class="home-label">About</span>
+						<p class="home-bio">
+							I study mathematics and philosophy at Yale.
+							I write about philosophy, AI, and whatever else I find interesting.
+						</p>
+					</section>
+
+					<section class="home-essays">
+						<span class="home-label">Essays</span>
+						<ul class="home-essay-list">
+							{posts.map((post) => (
+								<li>
+									<FormattedDate date={post.data.pubDate} />
+									<a href={`/essays/${post.id}/`}>{post.data.title}</a>
+									<p class="home-essay-desc">{post.data.description}</p>
+								</li>
+							))}
+						</ul>
+					</section>
+				</main>
+
+				<aside class="home-links">
+					<span class="home-label">Links</span>
+					<ul class="home-links-list">
+						<li><a href="/rss.xml">RSS</a></li>
+						<li><a href="https://substack.com/@davidandresbloomq">Substack</a></li>
+						<li><a href="mailto:davidandresbloomq@gmail.com">Email</a></li>
+					</ul>
+				</aside>
+			</div>
+		</div>
+	</body>
+</html>
+
+<!-- Style map: see AGENTS.md. Homepage tuning uses --home-* below. -->
+<style>
+	.home {
+		--home-main-col: 560px;
+		--home-rail-col: 200px;
+		--home-gap: 48px;
+		--home-pad-top: 3rem;
+		--home-pad-x: 2rem;
+		--home-rail-top: 3rem;
+		--home-title-size: 1.55rem;
+		--home-label-size: 0.9rem;
+		--home-bio-size: 1.05rem;
+		--home-date-size: 0.8rem;
+		--home-essay-title-size: 1.25rem;
+		--home-link-size: 0.9rem;
+		--home-content-width: calc(var(--home-main-col) + var(--home-rail-col) + var(--home-gap));
+
+		padding: var(--home-pad-top) var(--home-pad-x) 2.5rem;
+	}
+
+	.home-shell {
+		width: min(100%, var(--home-content-width));
+		margin-inline: auto;
+		display: grid;
+		grid-template-columns: 1fr;
+		grid-template-areas:
+			"header"
+			"main"
+			"links";
+		row-gap: 1.75rem;
+		column-gap: var(--home-gap);
+		align-items: start;
+	}
+
+	@media (min-width: 64em) {
+		.home-shell {
+			grid-template-columns: var(--home-main-col) var(--home-rail-col);
+			grid-template-areas:
+				"header ."
+				"main links";
+			row-gap: 2.25rem;
+		}
+	}
+
+	.home-header {
+		grid-area: header;
+	}
+
+	.home-title {
+		font-family: var(--font-ui);
+		font-size: var(--home-title-size);
+		font-weight: 600;
+		color: var(--text);
+		text-align: left;
+		margin: 0;
+		line-height: 1;
+	}
+
+	.home-main {
+		grid-area: main;
+		display: flex;
+		flex-direction: column;
+		gap: 2.25rem;
+	}
+
+	.home-essays {
+		margin: 0;
+	}
+
+	.home-links {
+		grid-area: links;
+	}
+
+	@media (min-width: 64em) {
+		.home-links {
+			position: sticky;
+			top: var(--home-rail-top);
+			align-self: start;
+			text-align: right;
+		}
+	}
+
+	.home-label {
+		font-family: var(--font-ui);
+		font-size: var(--home-label-size);
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-muted);
+		display: block;
+		margin-bottom: 0.6em;
+	}
+
+	.home-bio {
+		font-family: var(--font-body);
+		font-size: var(--home-bio-size);
+		color: var(--text-muted);
+		line-height: 1.55;
+		margin: 0;
+	}
+
+	.home :global(time) {
+		font-size: var(--home-date-size);
+	}
+
+	.home-essay-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.home-essay-list li {
+		margin-bottom: 0.9em;
+	}
+	.home-essay-list li a {
+		display: block;
+		font-family: var(--font-body);
+		font-size: var(--home-essay-title-size);
+		font-weight: 400;
+		color: var(--text);
+		line-height: 1.3;
+	}
+	.home-essay-list li a:hover {
+		color: var(--accent);
+		text-decoration: none;
+	}
+	.home-essay-desc {
+		font-family: var(--font-body);
+		font-size: 0.9rem;
+		font-weight: 300;
+		color: var(--text-muted);
+		line-height: 1.45;
+		margin: 0.2em 0 0;
+	}
+
+	.home-links-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.home-links-list li {
+		margin-bottom: 0.35em;
+	}
+	.home-links-list a {
+		font-family: var(--font-ui);
+		font-size: var(--home-link-size);
+		color: var(--accent);
+	}
+
+	@media (max-width: 720px) {
+		.home {
+			--home-pad-top: 2rem;
+			--home-pad-x: 1.25rem;
+			row-gap: 1.5rem;
+		}
+	}
+</style>

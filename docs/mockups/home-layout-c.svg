@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <defs>
+    <style>
+      .bg { fill: #faf8f8; }
+      .frame { fill: none; stroke: #23222140; stroke-width: 2; }
+      .col { fill: #ffffff; stroke: #23222126; stroke-width: 1.5; }
+      .label { font: 600 14px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; letter-spacing: 2px; fill: #23222180; }
+      .title { font: 700 34px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; fill: #000; }
+      .body { font: 18px Newsreader, Georgia, serif; fill: #23222180; }
+      .item { font: 22px Newsreader, Georgia, serif; fill: #000; }
+      .link { font: 16px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; fill: #C46157; }
+      .note { font: 13px Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; fill: #23222166; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1200" height="700"/>
+
+  <!-- Two-tier idea: Row 1 = About | Links, Row 2 = Essays | (blank for future) -->
+  <rect class="frame" x="60" y="50" width="1080" height="600" rx="10"/>
+
+  <!-- Header spanning across, but hanging left of the main content block -->
+  <text class="title" x="70" y="105">David Bloom</text>
+  <text class="note" x="70" y="130">Tiered layout: top row (about + links), second row (essays + blank)</text>
+
+  <!-- Row 1 -->
+  <rect class="col" x="90" y="160" width="780" height="200" rx="10"/>
+  <rect class="col" x="900" y="160" width="240" height="200" rx="10"/>
+
+  <text class="label" x="118" y="210">ABOUT</text>
+  <text class="body" x="118" y="245">
+    <tspan x="118" dy="0">I study mathematics and philosophy at Yale. I write</tspan>
+    <tspan x="118" dy="26">about philosophy, AI, and whatever else I find</tspan>
+    <tspan x="118" dy="26">interesting.</tspan>
+  </text>
+
+  <text class="label" x="928" y="210">LINKS</text>
+  <text class="link" x="928" y="250">RSS</text>
+  <text class="link" x="928" y="286">Substack</text>
+  <text class="link" x="928" y="322">Email</text>
+
+  <!-- Row 2 -->
+  <rect class="col" x="90" y="390" width="780" height="260" rx="10"/>
+  <rect class="col" x="900" y="390" width="240" height="260" rx="10"/>
+
+  <text class="label" x="118" y="440">ESSAYS</text>
+  <text class="note" x="118" y="475">03.16.2026</text>
+  <text class="item" x="118" y="512">A Sample Essay</text>
+
+  <text class="label" x="928" y="440">BLANK</text>
+  <text class="note" x="928" y="475">Optional: projects, notes,</text>
+  <text class="note" x="928" y="500">or just whitespace.</text>
+</svg>
+

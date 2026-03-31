@@ -1,0 +1,41 @@
+<header>
+  <a href="/" class="site-name">David Bloom</a>
+  <nav class="site-nav">
+    <a href="/">Home</a>
+  </nav>
+</header>
+<style>
+  header {
+    padding: 1.5em 0 0.5em;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .site-name {
+    font-family: var(--font-ui);
+    font-size: 1.3em;
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .site-name:hover {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .site-nav {
+    display: flex;
+    gap: 1.25em;
+    font-family: var(--font-ui);
+    font-size: var(--font-size-ui);
+  }
+  .site-nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .site-nav a:hover {
+    color: var(--accent);
+  }
+</style>

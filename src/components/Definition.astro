@@ -1,0 +1,46 @@
+---
+interface Props {
+	title?: string;
+}
+
+const { title } = Astro.props;
+---
+
+<section class="definition" role="note" aria-label={title ? title : 'Definition'}>
+	{title && <span class="definition-title">{title}</span>}
+	<div class="definition-body">
+		<slot />
+	</div>
+</section>
+
+<style>
+	.definition {
+		margin: 1.5em 0;
+		padding: 0.9em 1em;
+		border-left: 3px solid var(--accent);
+		background: var(--bg-alt);
+		border-radius: 4px;
+	}
+
+	.definition-title {
+		display: block;
+		font-family: var(--font-ui);
+		font-size: var(--font-size-ui);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-muted);
+		margin-bottom: 0.5em;
+	}
+
+	.definition-body {
+		color: var(--text);
+		font-size: 0.98rem;
+		line-height: 1.6;
+	}
+
+	.definition-body :global(p:last-child) {
+		margin-bottom: 0;
+	}
+</style>
+

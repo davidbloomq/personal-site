@@ -1,0 +1,488 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseHead from '../components/BaseHead.astro';
+import FormattedDate from '../components/FormattedDate.astro';
+import Header from '../components/Header.astro';
+import AsciiCursorTrail from '../components/AsciiCursorTrail.astro';
+
+type Props = CollectionEntry<'blog'>['data'];
+
+const { title, description, pubDate, updatedDate } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<BaseHead title={title} description={description} />
+	</head>
+
+	<body>
+		<AsciiCursorTrail />
+		<div class="essay-grid">
+			<div class="grid-header">
+				<Header />
+			</div>
+
+			<nav class="toc" id="toc">
+				<div class="toc-inner">
+					<span class="toc-title">Contents</span>
+					<ol id="toc-list"></ol>
+				</div>
+			</nav>
+
+			<header class="essay-header">
+				<div class="dates">
+					{updatedDate && (
+						<span class="update-date">Last updated: <FormattedDate date={updatedDate} /></span>
+					)}
+					<span class="pub-date">Published: <FormattedDate date={pubDate} /></span>
+				</div>
+				<h1>{title}</h1>
+			</header>
+
+			<main class="essay-body">
+				<div class="prose">
+					<slot />
+				</div>
+			</main>
+
+			<div class="sidenote-column" id="sidenote-column"></div>
+		</div>
+
+		<a href="#" class="subscribe-btn" id="subscribe-trigger">Subscribe</a>
+
+		<div class="subscribe-modal" id="subscribe-modal">
+			<div class="subscribe-backdrop" id="subscribe-backdrop"></div>
+			<div class="subscribe-modal-content">
+				<button class="subscribe-close" id="subscribe-close">&times;</button>
+				<span class="subscribe-heading">Subscribe</span>
+				<ul class="subscribe-links">
+					<li><a href="/rss.xml">RSS</a></li>
+					<li><a href="https://substack.com/@davidandresbloomq">Substack</a></li>
+				</ul>
+			</div>
+		</div>
+
+		<script>
+			function buildTOC() {
+				const prose = document.querySelector('.prose');
+				const tocList = document.getElementById('toc-list');
+				const toc = document.getElementById('toc');
+				if (!prose || !tocList || !toc) return;
+
+				const headings = prose.querySelectorAll('h2, h3, h4');
+				if (headings.length === 0) {
+					toc.style.display = 'none';
+					return;
+				}
+
+				let h2Count = 0, h3Count = 0, h4Count = 0;
+				let currentH2Li = null;
+				let currentH2Ol = null;
+				let currentH3Li = null;
+				let currentH3Ol = null;
+
+				headings.forEach((heading, i) => {
+					const id = heading.id || `section-${i}`;
+					heading.id = id;
+
+					const li = document.createElement('li');
+					const a = document.createElement('a');
+					a.href = `#${id}`;
+
+					if (heading.tagName === 'H2') {
+						h2Count++;
+						h3Count = 0;
+						h4Count = 0;
+						a.textContent = `${h2Count}. ${heading.textContent}`;
+						li.appendChild(a);
+						tocList.appendChild(li);
+						currentH2Li = li;
+						currentH2Ol = null;
+						currentH3Li = null;
+						currentH3Ol = null;
+					} else if (heading.tagName === 'H3') {
+						h3Count++;
+						h4Count = 0;
+						a.textContent = `${h2Count}.${h3Count} ${heading.textContent}`;
+						li.appendChild(a);
+						if (!currentH2Ol) {
+							currentH2Ol = document.createElement('ol');
+							if (currentH2Li) {
+								currentH2Li.appendChild(currentH2Ol);
+							} else {
+								tocList.appendChild(currentH2Ol);
+							}
+						}
+						currentH2Ol.appendChild(li);
+						currentH3Li = li;
+						currentH3Ol = null;
+					} else if (heading.tagName === 'H4') {
+						h4Count++;
+						a.textContent = `${h2Count}.${h3Count}.${h4Count} ${heading.textContent}`;
+						li.appendChild(a);
+						if (!currentH3Ol) {
+							currentH3Ol = document.createElement('ol');
+							if (currentH3Li) {
+								currentH3Li.appendChild(currentH3Ol);
+							} else if (currentH2Ol) {
+								currentH2Ol.appendChild(li);
+								return;
+							}
+						}
+						currentH3Ol.appendChild(li);
+					}
+				});
+
+				// Scrollspy
+				const observer = new IntersectionObserver(
+					(entries) => {
+						entries.forEach((entry) => {
+							const id = entry.target.id;
+							const tocLink = tocList.querySelector(`a[href="#${id}"]`);
+							if (tocLink) {
+								if (entry.isIntersecting) {
+									tocList.querySelectorAll('a').forEach((a) => a.classList.remove('active'));
+									tocLink.classList.add('active');
+								}
+							}
+						});
+					},
+					{ rootMargin: '-80px 0px -80% 0px' }
+				);
+
+				headings.forEach((heading) => observer.observe(heading));
+			}
+			buildTOC();
+
+			function setupSidenotes() {
+				const TRUNCATE_HEIGHT = 96;
+				const prose = document.querySelector('.prose');
+				const column = document.getElementById('sidenote-column');
+				if (!prose || !column) return;
+
+				const isDesktop = window.matchMedia('(min-width: 64em)').matches;
+				if (!isDesktop) return;
+
+				const notes = prose.querySelectorAll('.sidenote');
+				notes.forEach((note) => {
+					column.appendChild(note);
+					note.style.display = 'block';
+					note.style.position = 'absolute';
+					note.style.width = '100%';
+				});
+
+				function positionSidenotes() {
+					const gridRect = document.querySelector('.essay-grid')?.getBoundingClientRect();
+					const colRect = column.getBoundingClientRect();
+					if (!gridRect) return;
+					const colOffsetTop = colRect.top - gridRect.top;
+					let lastBottom = 0;
+
+					notes.forEach((note) => {
+						const id = note.getAttribute('data-sidenote-id');
+						const ref = document.querySelector(`label[for="sn-${id}"]`);
+						if (!ref) return;
+
+						const refRect = ref.getBoundingClientRect();
+						let targetTop = (refRect.top - gridRect.top) - colOffsetTop;
+						if (targetTop < lastBottom) targetTop = lastBottom;
+
+						note.style.top = targetTop + 'px';
+						lastBottom = targetTop + note.offsetHeight + 12;
+					});
+				}
+
+				requestAnimationFrame(() => {
+					notes.forEach((note) => {
+						const content = note.querySelector('.sidenote-content');
+						const btn = note.querySelector('.sidenote-more');
+						if (!content || !btn) return;
+
+						if (content.scrollHeight > TRUNCATE_HEIGHT) {
+							note.classList.add('truncated');
+							btn.classList.add('visible');
+							btn.textContent = 'MORE \u2304';
+							btn.addEventListener('click', () => {
+								const isTruncated = note.classList.contains('truncated');
+								if (isTruncated) {
+									note.classList.remove('truncated');
+									btn.textContent = 'LESS \u2303';
+								} else {
+									note.classList.add('truncated');
+									btn.textContent = 'MORE \u2304';
+								}
+								requestAnimationFrame(() => positionSidenotes());
+							});
+						}
+					});
+					positionSidenotes();
+				});
+
+				window.addEventListener('resize', () => requestAnimationFrame(() => positionSidenotes()));
+			}
+			setupSidenotes();
+
+			function setupSubscribeModal() {
+				const trigger = document.getElementById('subscribe-trigger');
+				const modal = document.getElementById('subscribe-modal');
+				const backdrop = document.getElementById('subscribe-backdrop');
+				const closeBtn = document.getElementById('subscribe-close');
+				if (!trigger || !modal) return;
+
+				trigger.addEventListener('click', (e) => {
+					e.preventDefault();
+					modal.classList.add('open');
+				});
+
+				function closeModal() {
+					modal.classList.remove('open');
+				}
+
+				closeBtn.addEventListener('click', closeModal);
+				backdrop.addEventListener('click', closeModal);
+				document.addEventListener('keydown', (e) => {
+					if (e.key === 'Escape') closeModal();
+				});
+			}
+			setupSubscribeModal();
+		</script>
+	</body>
+</html>
+
+<!-- Style map: see AGENTS.md. Essay layout uses --page-width/--side-col/--col-gap below. -->
+<style>
+	.essay-grid {
+		display: grid;
+		column-gap: var(--col-gap);
+		max-width: var(--page-width);
+		margin: 0 auto;
+		padding: 0 var(--col-gap);
+		grid-template-areas:
+			"header"
+			"toc"
+			"main";
+		grid-template-columns: 1fr;
+	}
+
+	@media (min-width: 64em) {
+		.essay-grid {
+			grid-template-areas:
+				". grid-header ."
+				"toc header sidenotes"
+				"toc main sidenotes";
+			grid-template-columns: var(--side-col) minmax(0, 720px) var(--side-col);
+		}
+	}
+
+	.sidenote-column {
+		grid-area: sidenotes;
+		position: relative;
+	}
+
+	@media (max-width: 63.99em) {
+		.sidenote-column {
+			display: none;
+		}
+	}
+
+	.grid-header {
+		grid-area: grid-header;
+	}
+
+	.toc {
+		grid-area: toc;
+	}
+	.toc-inner {
+		position: sticky;
+		top: 2em;
+		max-height: calc(100vh - 4em);
+		overflow-y: auto;
+		font-family: var(--font-ui);
+		font-size: 0.8rem;
+	}
+	.toc-title {
+		font-weight: 500;
+		font-size: var(--font-size-ui);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-muted);
+		display: block;
+		margin-bottom: 0.75em;
+	}
+	.toc :global(ol) {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+	.toc :global(ol ol) {
+		padding-left: 1em;
+	}
+	.toc :global(li) {
+		margin-bottom: 0.4em;
+		line-height: 1.35;
+	}
+	.toc :global(a) {
+		color: var(--accent);
+		text-decoration: none;
+		transition: color 0.15s ease, font-weight 0.15s ease;
+	}
+	.toc :global(a:hover) {
+		color: var(--accent-hover);
+	}
+	.toc :global(a.active) {
+		font-weight: 600;
+	}
+
+	.essay-header {
+		grid-area: header;
+		margin-bottom: 1em;
+	}
+	.dates {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1em;
+		font-family: var(--font-ui);
+		font-size: var(--font-size-ui);
+		font-weight: 400;
+		margin-bottom: 1em;
+	}
+	.update-date {
+		color: var(--text-light);
+	}
+	.pub-date {
+		color: var(--text-muted);
+	}
+	.essay-header h1 {
+		font-size: var(--font-size-h1);
+		font-weight: 400;
+		margin: 0;
+		line-height: 1.1;
+	}
+
+	.essay-body {
+		grid-area: main;
+	}
+
+	.prose {
+		line-height: 1.6;
+		font-size: 1rem;
+	}
+	.prose :global(h2) {
+		margin-top: 2em;
+	}
+	.prose :global(h3) {
+		margin-top: 1.5em;
+	}
+
+	.subscribe-btn {
+		position: fixed;
+		bottom: 0;
+		right: 0;
+		font-family: var(--font-ui);
+		font-size: 0.85rem;
+		font-weight: 500;
+		text-transform: uppercase;
+		background: var(--accent);
+		color: #fff;
+		border: none;
+		padding: 5px 12px;
+		cursor: pointer;
+		z-index: 999;
+		text-decoration: none;
+	}
+	.subscribe-btn:hover {
+		background: var(--accent-hover);
+		color: #fff;
+		text-decoration: none;
+	}
+
+	.subscribe-modal {
+		display: none;
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+	}
+	.subscribe-modal.open {
+		display: block;
+	}
+	.subscribe-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.2);
+	}
+	.subscribe-modal-content {
+		position: fixed;
+		bottom: 2em;
+		right: 2em;
+		background: #fff;
+		padding: 1.5em;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+		border-radius: 6px;
+		width: 220px;
+		z-index: 1001;
+	}
+	.subscribe-close {
+		position: absolute;
+		top: 0.5em;
+		right: 0.75em;
+		background: none;
+		border: none;
+		font-size: 1.25rem;
+		cursor: pointer;
+		color: var(--text-muted);
+		padding: 0;
+		line-height: 1;
+	}
+	.subscribe-close:hover {
+		color: var(--text);
+	}
+	.subscribe-heading {
+		font-family: var(--font-ui);
+		font-size: 0.85rem;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text);
+		display: block;
+		margin-bottom: 0.75em;
+	}
+	.subscribe-links {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+	.subscribe-links li {
+		margin-bottom: 0.4em;
+	}
+	.subscribe-links a {
+		font-family: var(--font-ui);
+		font-size: 0.85rem;
+		color: var(--accent);
+		text-decoration: none;
+	}
+	.subscribe-links a:hover {
+		text-decoration: underline;
+	}
+
+	@media (max-width: 63.99em) {
+		.toc {
+			margin-bottom: 1em;
+		}
+		.toc-inner {
+			position: static;
+			max-height: none;
+			border-bottom: 1px solid var(--border);
+			padding-bottom: 1em;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.essay-grid {
+			padding: 0 1.5em;
+		}
+		.essay-header h1 {
+			font-size: 2rem;
+		}
+	}
+</style>
