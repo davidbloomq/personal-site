@@ -81,6 +81,17 @@
 	--page-pad-bottom: 4rem;
 }
 
+[data-theme="dark"] {
+	--text: #e8e2dc;
+	--text-muted: #a89f9480;
+	--text-light: #a89f9466;
+	--accent: #D4776E;
+	--accent-hover: #e08d85;
+	--bg: #1a1817;
+	--bg-alt: #242120;
+	--border: #e8e2dc25;
+}
+
 body {
 	font-family: var(--font-body);
 	margin: 0;
