@@ -13,7 +13,7 @@ Astro, KaTeX (remark-math + rehype-katex), vanilla CSS. Design tokens in `src/st
 - `src/pages/index.astro` — homepage (2-col desktop: bio+essays | links; single-col mobile)
 - `src/pages/essays/[...slug].astro` — essay routes
 - `src/pages/rss.xml.js` — RSS feed (styled via `public/rss.xsl`)
-- `src/components/` — Sidenote, Header (w/ nav), BaseHead, FormattedDate, Definition
+- `src/components/` — Sidenote, Header (w/ nav), BaseHead, FormattedDate, Definition, AsciiCursorTrail
 - `src/content/blog/` — essay markdown/MDX files
 
 ## Writing
@@ -21,6 +21,10 @@ Astro, KaTeX (remark-math + rehype-katex), vanilla CSS. Design tokens in `src/st
 - `.md` for plain essays, `.mdx` for essays with sidenotes
 - Sidenotes: import `Sidenote.astro`, use `<Sidenote id={N}>text</Sidenote>`
 - Frontmatter: `title`, `description`, `pubDate`, optional `updatedDate`
+
+## Deployment
+
+GitHub repo: `davidbloomq/personal-site` (public). Pushes to `main` auto-deploy via `.github/workflows/deploy.yml` → GitHub Pages. Custom domain `david-bloom.com` via Cloudflare DNS (A records + CNAME, DNS-only/gray cloud).
 
 ## Dev
 
