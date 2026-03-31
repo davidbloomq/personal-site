@@ -21,6 +21,7 @@ const posts = (await getCollection('blog')).sort(
 			<div class="home-shell">
 				<header class="home-header">
 					<h1 class="home-title">David Bloom</h1>
+					<button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">●</button>
 				</header>
 
 				<main class="home-main">
@@ -56,6 +57,19 @@ const posts = (await getCollection('blog')).sort(
 				</aside>
 			</div>
 		</div>
+
+		<script is:inline>
+(function() {
+  var btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    var current = document.documentElement.dataset.theme;
+    var next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('theme', next);
+  });
+})();
+		</script>
 	</body>
 </html>
 
@@ -105,6 +119,23 @@ const posts = (await getCollection('blog')).sort(
 
 	.home-header {
 		grid-area: header;
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+	}
+
+	.theme-toggle {
+		background: none;
+		border: none;
+		cursor: pointer;
+		font-size: 0.6rem;
+		color: var(--text-muted);
+		padding: 0;
+		line-height: 1;
+		transition: color 0.15s ease-in-out;
+	}
+	.theme-toggle:hover {
+		color: var(--accent);
 	}
 
 	.home-title {
