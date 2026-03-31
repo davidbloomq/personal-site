@@ -27,7 +27,30 @@
 
   // Plain ASCII — denser chars for fresh particles, sparser as they age
   const charsByAge = '@#%=+*:;-,.';
-  const accentColor = [196, 97, 87]; // #C46157
+
+  function parseHexToRgb(hex: string): [number, number, number] {
+    hex = hex.trim();
+    if (hex.startsWith('#')) hex = hex.slice(1);
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+    ];
+  }
+
+  function getAccentColor(): [number, number, number] {
+    const val = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+    return parseHexToRgb(val || '#C46157');
+  }
+
+  let accentColor = getAccentColor();
+
+  new MutationObserver(() => {
+    accentColor = getAccentColor();
+  }).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
 
   interface Particle {
     x: number;
