@@ -409,15 +409,15 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 	.subscribe-backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.2);
+		background: rgba(0, 0, 0, 0.4);
 	}
 	.subscribe-modal-content {
 		position: fixed;
 		bottom: 2em;
 		right: 2em;
-		background: #fff;
+		background: var(--bg);
 		padding: 1.5em;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 		border-radius: 6px;
 		width: 220px;
 		z-index: 1001;
