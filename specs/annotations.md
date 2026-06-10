@@ -28,7 +28,7 @@ per-thread visibility toggles.
 
 - No accounts, profiles, logins, or emails for readers.
 - No likes/votes, editing of posted comments, or markdown in comments
-  (plain text only, rendered escaped; URLs not auto-linked in v1).
+  (plain text only; URLs not auto-linked in v1).
 - No pre-moderation queue (rejected: kills conversational feel).
 - No comments on the homepage or /feed — essays only.
 
@@ -39,10 +39,10 @@ Browser (static essay page)
   └── annotations.js island (vanilla JS, loaded on essay pages)
         │  GET/POST JSON, CORS-restricted to david-bloom.com
         ▼
-Cloudflare Worker (separate repo dir: /worker or separate repo)
+Cloudflare Worker (this repo, /worker)
   ├── D1 database (comments)
-  ├── rate limiting (per-IP)
-  └── email notification on new comment
+  ├── rate limiting (ratelimit binding + D1 daily counter)
+  └── email notification via Resend on new comment
 ```
 
 The Astro site gains one new client-side module and some CSS; it has no
@@ -62,18 +62,21 @@ CREATE TABLE comments (
   body          TEXT NOT NULL,             -- plain text, max 4000 chars
   display_name  TEXT,                      -- optional, max 40 chars; NULL = anonymous
   commenter_key TEXT NOT NULL,             -- random client token, see Numbering
+  ip_hash       TEXT NOT NULL,             -- HMAC-SHA-256(secret, ip); never the raw IP
   is_author     INTEGER NOT NULL DEFAULT 0,
   hidden        INTEGER NOT NULL DEFAULT 0, -- author-hidden (thread stays, content suppressed)
   deleted       INTEGER NOT NULL DEFAULT 0, -- soft delete
   created_at    TEXT NOT NULL              -- ISO 8601
 );
 CREATE INDEX idx_comments_post ON comments(post_slug, created_at);
+CREATE INDEX idx_comments_ip ON comments(ip_hash, created_at);
 
 CREATE TABLE commenter_numbers (
   post_slug     TEXT NOT NULL,
   commenter_key TEXT NOT NULL,
   number        INTEGER NOT NULL,          -- 1, 2, 3… per post
-  PRIMARY KEY (post_slug, commenter_key)
+  PRIMARY KEY (post_slug, commenter_key),
+  UNIQUE (post_slug, number)
 );
 ```
 
@@ -83,13 +86,21 @@ Per `later.md`: a commenter without a name is shown as “#N”, stable enough
 that you can follow who replies to whom within threads.
 
 - On first use the client generates a random `commenter_key` (128-bit, hex) and
-  keeps it in `localStorage` (wrapped in try/catch per repo rules).
+  keeps it in `localStorage` (wrapped in try/catch per repo rules). If
+  `localStorage` is unavailable (Safari “Block all cookies”), generate a
+  per-pageload key — numbering is then per-visit, which is acceptable.
 - On the first comment by that key on a given post, the Worker assigns the next
-  number for that post (`MAX(number)+1`, in a transaction) and records it.
+  number for that post. Concurrency: do this as a single statement —
+  `INSERT OR IGNORE INTO commenter_numbers VALUES (?post, ?key,
+  (SELECT COALESCE(MAX(number),0)+1 FROM commenter_numbers WHERE post_slug=?post))`
+  — then read the number back. D1 serializes writes per database and the
+  `UNIQUE (post_slug, number)` constraint is the backstop; on constraint
+  failure, retry once.
+- `commenter_key` is a bearer secret for the #N identity: the API never returns
+  it in any response (GET responses carry only the resolved number/name).
 - Display rule: if `display_name` is set, show the name; else show “#N”.
-  The number is per-post, not global, and is shown even when the same person
-  later supplies a name on another comment (each comment renders what it has —
-  name on named comments, #N on unnamed ones; the key keeps N stable).
+  The number is per-post, not global; each comment renders what it has —
+  name on named comments, #N on unnamed ones; the key keeps N stable.
 - David’s author comments show “David” plus an Author badge regardless of the
   name field; `is_author` wins.
 
@@ -99,12 +110,21 @@ Anchors must survive HTML rendering details and minor essay edits, and must
 fail gracefully.
 
 - Store a **TextQuoteSelector** in `anchor_json`, after the W3C Web Annotation
-  Data Model: `{ exact, prefix, suffix }` — the selected text plus ~32 chars of
-  context either side — plus a coarse position hint
-  `{ headingId, charOffset }` for disambiguation when `exact` appears twice.
-- Re-anchoring on page load: walk the text content of `.prose`, find
-  `prefix + exact + suffix`; fall back to `exact` alone nearest the position
-  hint; if nothing matches, the comment is **orphaned**.
+  Data Model (§4.2.3): `{ exact, prefix, suffix }` — the selected text plus
+  ~32 chars of context either side (`prefix`/`suffix` optional in the model;
+  we always store them) — plus a position hint `{ charOffset }`: the index of
+  the selection start in the post’s canonical text (defined next).
+- **Canonical text**: the concatenated `textContent` of `.prose`, **excluding**
+  (a) `.sidenote-ref` subtrees — sidenote text lives inline on mobile but is
+  moved to the margin column on desktop, so including it would make offsets
+  and prefixes differ by viewport — and (b) `.katex-mathml` (KaTeX renders a
+  hidden MathML duplicate of every formula; only the visible `.katex-html`
+  half counts). Selection capture and re-anchoring must both use this same
+  text index, or anchors made on mobile won’t resolve on desktop.
+- Re-anchoring on page load: find `prefix + exact + suffix` in the canonical
+  text; if it matches more than once or not at all, fall back to `exact`
+  alone, choosing the occurrence nearest `charOffset`; if nothing matches,
+  the comment is **orphaned**.
 - Orphaned comments are not lost: they appear in the post’s comment list
   (popover/panel “all comments” view, or end-of-margin in Option B) with a note
   “the highlighted passage has changed”.
@@ -117,61 +137,94 @@ fail gracefully.
 Use the **CSS Custom Highlight API** (`CSS.highlights`, `::highlight()`),
 which paints ranges without mutating the DOM — important because the sidenote
 script moves nodes between inline and margin homes, and KaTeX produces deep
-markup that span-wrapping would corrupt. Browsers without support get no
-visible highlight but still get the comment list; feature-detect
-`CSS.highlights` and degrade silently. (Reviewer: verify current browser
-support and that highlights can carry distinct styles per thread state —
-default vs. active/open.)
+markup that span-wrapping would corrupt. Support (verified): Chrome 105+,
+Safari 17.2+, Firefox 140+ (June 2025) — all evergreen browsers. Older
+browsers get no visible highlight but still get the comment list;
+feature-detect `CSS.highlights` and degrade silently.
 
-Highlight styling: a low-opacity accent underline/tint via `--accent`, with a
-stronger tint for the currently open thread. Must be visible in both themes
-(`[data-theme="dark"]` swaps `--accent`).
+- Distinct styles per state work: register two named highlights (e.g.
+  `comments` and `comment-active`), style each via `::highlight(name)`, and
+  use the `priority` property so the active range wins.
+- Style with `background-color` tint only (low-opacity `--accent`, stronger
+  for the open thread). Do **not** rely on `text-decoration` — Firefox does
+  not support it inside `::highlight()`. Must be visible in both themes
+  (`[data-theme="dark"]` swaps `--accent`).
+- Ranges are live but break when nodes move: re-resolve and repaint all
+  highlights whenever the 64em `matchMedia` listener re-homes sidenotes
+  (hook the same breakpoint change `setupSidenotes()` listens to; do not
+  paint once at load only).
 
 ## API (Worker)
 
 All endpoints JSON; CORS `Access-Control-Allow-Origin: https://david-bloom.com`
-(plus `http://localhost:4321` in dev via env var).
+(plus `http://localhost:4321` in dev via env var). The Worker must answer
+`OPTIONS` preflights (POST/DELETE with `Content-Type: application/json` and
+`Authorization` always preflight): allow methods `GET, POST, DELETE, OPTIONS`,
+headers `Content-Type, Authorization`, with a long `Access-Control-Max-Age`.
 
 | Method & path | Auth | Purpose |
 | --- | --- | --- |
-| `GET /v1/comments?post=<slug>` | none | All visible comments + numbers for a post |
+| `GET /v1/comments?post=<slug>` | none | Visible comments + numbers for a post |
 | `POST /v1/comments` | none | Create comment or reply |
 | `POST /v1/author/login` | passphrase | Verify passphrase, returns ok (client then stores it) |
 | `DELETE /v1/comments/:id` | passphrase header | Soft-delete a comment (or whole thread via `?thread=1`) |
-| `POST /v1/comments/:id/hide` / `unhide` | passphrase header | Toggle `hidden` |
+| `POST /v1/comments/:id/hide` | passphrase header | Set `hidden = 1` on a thread |
+| `POST /v1/comments/:id/unhide` | passphrase header | Set `hidden = 0` |
 
+- `<slug>` must match `[a-z0-9-]{1,128}`; reject anything else with 400.
 - `POST /v1/comments` body: `{ post, parentId?, anchor?, body, name?, commenterKey, author? }`.
   `anchor` required iff `parentId` absent. If `author: true`, the passphrase
-  header must validate, else 401.
-- `GET` response excludes `deleted` rows; `hidden` threads are returned as
-  stubs (`{ id, hidden: true }`) so the client can show “thread hidden by
-  author” and keep highlight positions stable.
-- Passphrase: stored as a Worker secret (e.g. `AUTHOR_PASSPHRASE` via
-  `wrangler secret`), compared constant-time. Sent as `Authorization: Bearer`.
-  No sessions/JWT — single user, low stakes.
+  header must validate, else 401. Server escapes nothing — it stores raw text;
+  **the client renders all user content (body, name, orphaned `exact`
+  snippets) via `textContent`, never `innerHTML`**.
+- Replying to a `deleted` comment → 404; replying to a `hidden` comment → 403
+  (the client never offers a reply box on hidden threads anyway).
+- `GET` response: ordered by `created_at`, hard-capped at 500 comments per
+  post in v1 (response includes `truncated: true` past the cap; revisit
+  pagination if any post approaches it). `deleted` rows are excluded, except
+  a deleted comment with non-deleted descendants returns a tombstone
+  (`{ id, parentId, deleted: true }`) so threads don’t lose their structure.
+  `hidden` top-level comments return a stub (`{ id, hidden: true }` — no
+  anchor, no body) so the client can show “thread hidden by author” in the
+  list; hidden threads get no highlight painted.
+- Passphrase: stored as a Worker secret (`AUTHOR_PASSPHRASE` via
+  `wrangler secret put`), compared constant-time. Sent as
+  `Authorization: Bearer`. No sessions/JWT — single user, low stakes.
+  `POST /v1/author/login` is rate-limited like comment creation to slow
+  brute-forcing.
 
 ### Rate limiting & abuse controls
 
-- Per-IP: max 5 comments/minute and 50/day. Use Cloudflare Workers’ rate
-  limiting binding if available on the free plan; otherwise a D1/KV counter
-  keyed by IP with TTL semantics. (Reviewer: verify the rate-limiting binding’s
-  plan availability in current Cloudflare docs and recommend the mechanism.)
-- Body ≤ 4000 chars, name ≤ 40 chars, anchor `exact` ≤ 1000 chars; reject
-  oversized payloads early (`Content-Length` cap).
-- Store only a salted hash of the IP if any IP is persisted; raw IPs are not
-  written to D1.
-- A hidden honeypot field in the form; bots that fill it get a 200 but the
-  comment is dropped.
+- **Per-minute**: the Workers **`ratelimits` binding** (GA since 2025-09,
+  available on the free plan; requires Wrangler ≥ 4.36.0). Configure
+  `{ limit: 5, period: 60 }` keyed on client IP. Note its `period` only
+  supports 10 or 60 seconds and counters are per-Cloudflare-location, not
+  global — fine at these stakes.
+- **Per-day** (50/day): the binding can’t do daily windows, so count rows in
+  D1: `SELECT COUNT(*) FROM comments WHERE ip_hash = ? AND created_at > <24h ago>`
+  before insert. This is why `ip_hash` is on the table.
+- `ip_hash` = HMAC-SHA-256 of the connecting IP with a secret key
+  (`IP_HASH_KEY`, a Worker secret); raw IPs are never written to D1.
+- Body ≤ 4000 chars, name ≤ 40 chars, anchor `exact` ≤ 1000 chars,
+  prefix/suffix ≤ 64 chars each; reject request bodies over 16 KB early
+  (`Content-Length` cap) and over-limit fields with 400.
+- A hidden honeypot field in the form; bots that fill it get a plausible 200
+  but the comment is dropped.
 
 ### Email notification
 
-On each successful `POST /v1/comments` (non-author), the Worker sends David an
-email with post, snippet, name/#N, and a direct link
-(`https://david-bloom.com/essays/<slug>/#comment-<id>`). Mechanism: an email
-API called from the Worker — candidate: Resend free tier with a verified
-sending domain. (Reviewer: MailChannels’ free Workers integration was
-discontinued; verify the current recommended way to send email from Workers in
-2026 and pick one.) Failure to send must not fail the comment POST.
+On each successful `POST /v1/comments` (non-author), the Worker emails David
+the post, a snippet, name/#N, and a direct link
+(`https://david-bloom.com/essays/<slug>/#comment-<id>`).
+
+**Provider: Resend** (decided). MailChannels’ free Workers integration was
+shut down in mid-2024, and Cloudflare’s docs now point Workers users at
+Resend. Free tier: 3,000 emails/month, 100/day, one verified sending domain —
+comfortably above the comment rate caps. Verify `david-bloom.com` in Resend
+(DNS records added in the same Cloudflare zone), send from e.g.
+`comments@david-bloom.com` to David’s Gmail, API key as Worker secret
+`RESEND_API_KEY`. Send via `ctx.waitUntil()` after responding — a send
+failure must never fail the comment POST.
 
 ## Frontend behaviour
 
@@ -183,7 +236,8 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
 ### Reading
 
 1. On load, fetch comments for the post (single GET, no client SDK).
-2. Re-anchor each top-level comment; paint highlights via Custom Highlight API.
+2. Re-anchor each top-level comment; paint highlights via Custom Highlight
+   API; repaint on the 64em breakpoint change (see Rendering highlights).
 3. Clicking/tapping a highlight opens its thread (popover in Option A; scrolls
    to / focuses the margin card in Option B).
 4. **Global toggle**: a small control (placement decided with mockups —
@@ -202,7 +256,8 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
    `selectionchange` debounce).
 2. Clicking it opens a compose box: textarea + optional “Name” field
    (placeholder “anonymous — shown as #N”) + Post button. Esc/click-away
-   cancels.
+   closes it, but typed draft text is kept until page unload (click-away
+   must not destroy a half-written comment).
 3. On post: optimistic insert, then reconcile with server response (which
    carries the assigned #N). Errors surface inline (“couldn’t post — try
    again”), never as alerts.
@@ -242,14 +297,21 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
 ## Repo & deployment changes
 
 - New: `worker/` directory in this repo (or sibling repo — prefer same repo,
-  `worker/` with its own `wrangler.toml`, so the spec, site, and API version
-  together). Deployed manually via `npx wrangler deploy` at first; a GitHub
-  Action later if it churns.
+  `worker/` with its own `wrangler.jsonc` (current default config format; the
+  stable `ratelimits` binding key needs Wrangler ≥ 4.36.0), so the spec,
+  site, and API version together). Deployed manually via `npx wrangler
+  deploy` at first; a GitHub Action later if it churns.
 - DNS: `api.david-bloom.com` routed to the Worker (Cloudflare-proxied, unlike
   the site’s DNS-only records).
-- D1 database created via `wrangler d1 create`; schema applied with a
-  `schema.sql` + `wrangler d1 execute`.
-- Secrets: `AUTHOR_PASSPHRASE`, email API key.
+- D1 database via `wrangler d1 create comments`; schema applied with
+  `wrangler d1 execute comments --remote --file schema.sql` (`--local` for
+  dev — the flag is required either way).
+- Secrets: `wrangler secret put AUTHOR_PASSPHRASE`, `RESEND_API_KEY`,
+  `IP_HASH_KEY`.
+- D1 free-tier headroom (verified): 5M rows read / 100K rows written per day.
+  Worst plausible case (every page view reads a few hundred comment rows,
+  dozens of comments/day written) is orders of magnitude inside both; the
+  500-comment GET cap also bounds reads per view.
 - Site: `src/scripts/annotations.js` (+ CSS, either in the layout or a small
   stylesheet), loaded only on essay pages, deferred, and a no-op if the API is
   unreachable (the essay must never break because the Worker is down).
@@ -257,20 +319,31 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
 ## Verification plan
 
 - Unit-ish: Worker tested locally with `wrangler dev` + `curl` (create, reply,
-  rate-limit trip, author auth fail/success, hide/delete).
+  reply-to-deleted/hidden, rate-limit trip, author auth fail/success,
+  hide/delete, tombstone shape, OPTIONS preflight headers).
 - Browser: Playwright against `npx astro preview` at 1440px and 390px —
   select→comment flow, thread open/close, global toggle off leaves page
-  pristine, dark mode highlight contrast, no sidenote layout regressions
-  (resize across the 64em breakpoint with comments open).
+  pristine, dark mode highlight contrast, no sidenote layout regressions, and
+  highlights surviving a resize across the 64em breakpoint with comments open
+  (sidenotes re-home; highlights must repaint).
+- Anchoring: a comment created at 390px (sidenotes inline) must resolve at
+  1440px (sidenotes in margin), and vice versa; a selection adjacent to a
+  KaTeX formula must round-trip.
 - Orphaning: edit a fixture post’s paragraph and confirm the comment degrades
   to the orphan list rather than mis-anchoring.
 
 ## Open questions
 
 1. Placement A vs. B — pending mockups (next step).
-2. Email provider choice — pending doc verification (reviewer).
-3. Rate-limiting mechanism (binding vs. D1 counter) — pending doc verification
-   (reviewer).
-4. Whether the global toggle default should ever be “off” for posts with no
+2. Whether the global toggle default should ever be “off” for posts with no
    comments yet (probably moot: with zero comments the UI is invisible anyway
    except the selection toolbar).
+
+## References
+
+- [CSS Custom Highlight API — MDN](https://developer.mozilla.org/en-US/docs/Web/API/CSS_Custom_Highlight_API) and [caniuse: Highlight API](https://caniuse.com/mdn-api_highlight) — Chrome 105+, Safari 17.2+, Firefox 140+; Firefox lacks `text-decoration` in `::highlight()`.
+- [Workers rate limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) and [GA changelog (2025-09-19)](https://developers.cloudflare.com/changelog/post/2025-09-19-ratelimit-workers-ga/) — `period` ∈ {10, 60}s, per-location counters.
+- [D1 limits](https://developers.cloudflare.com/d1/platform/limits/) — free tier: 5M rows read/day, 100K rows written/day.
+- [MailChannels Workers EOL notice](https://support.mailchannels.com/hc/en-us/articles/26814255454093-End-of-Life-Notice-Cloudflare-Workers) and [Resend pricing](https://resend.com/pricing) — free: 3,000/month, 100/day, 1 verified domain.
+- [W3C Web Annotation Data Model §4.2.3 TextQuoteSelector](https://www.w3.org/TR/annotation-model/#text-quote-selector) — `exact` required, `prefix`/`suffix` optional.
+- [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/) and [D1 Wrangler commands](https://developers.cloudflare.com/d1/wrangler-commands/) — `wrangler.jsonc` default; `d1 execute` needs `--local`/`--remote`.
