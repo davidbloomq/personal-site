@@ -19,10 +19,12 @@ per-thread visibility toggles.
 - **Moderation**: author can delete/hide any comment or thread from the page
   (in author mode); server-side rate limiting and length caps; email
   notification to David on each new comment.
-- **Placement (OPEN)**: pending mockups. Option A: popover panel opened by
-  clicking a highlight. Option B: Google-Docs-style cards in the right margin,
-  sharing the column with sidenotes. The spec below is written to work with
-  either; placement-specific details are flagged.
+- **Placement**: decided (from mockups) — Option B, Google-Docs-style cards in
+  the right margin, sharing the column with sidenotes; bottom sheet on mobile.
+  Comment cards must not clash with or crowd sidenotes (see Layout).
+- **Visibility model**: all comments shown by default. A “hide all comments”
+  button makes cards and highlights disappear entirely; each thread’s “hide”
+  collapses it to a compact sidenote-like box that can be re-expanded.
 
 ## Non-goals
 
@@ -125,9 +127,8 @@ fail gracefully.
   text; if it matches more than once or not at all, fall back to `exact`
   alone, choosing the occurrence nearest `charOffset`; if nothing matches,
   the comment is **orphaned**.
-- Orphaned comments are not lost: they appear in the post’s comment list
-  (popover/panel “all comments” view, or end-of-margin in Option B) with a note
-  “the highlighted passage has changed”.
+- Orphaned comments are not lost: they stack at the end of the margin column
+  (see Layout) with a note that the highlighted passage has changed.
 - Selection constraints: selections must be within `.prose`, not inside a
   sidenote, ≤ 1000 characters, and non-empty after trimming. The selection
   toolbar simply doesn’t appear otherwise.
@@ -238,16 +239,20 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
 1. On load, fetch comments for the post (single GET, no client SDK).
 2. Re-anchor each top-level comment; paint highlights via Custom Highlight
    API; repaint on the 64em breakpoint change (see Rendering highlights).
-3. Clicking/tapping a highlight opens its thread (popover in Option A; scrolls
-   to / focuses the margin card in Option B).
-4. **Global toggle**: a small control (placement decided with mockups —
-   likely near the essay header or with the subscribe button) switches all
-   comment UI off/on for the post. State in `localStorage`
-   (`annotations:enabled`, default on). Off = no highlights, no toolbar,
-   no panels; the page looks exactly as it does today.
-5. **Per-thread toggle**: each thread has a local “hide this thread” control
-   (collapses card/highlight for this reader; stored per-thread in
-   `localStorage`). Distinct from the author’s server-side `hidden`.
+3. Clicking/tapping a highlight scrolls to and focuses its margin card
+   (bottom sheet on mobile); hovering/focusing a card brightens its highlight.
+4. **Global toggle**: a sticky button in the bottom-left corner, styled as the
+   mirror of the Subscribe button (bottom-right) — e.g. “Comments (N)” /
+   “Comments: hidden”. Default is **show all**. Hiding removes all comment UI:
+   cards, highlights, and the selection toolbar — the page looks exactly as it
+   does today. State in `localStorage` (`annotations:enabled`, default on).
+5. **Per-thread collapse**: each card’s “hide” control collapses the thread to
+   a compact one-line box in the margin, visually akin to a truncated sidenote
+   (e.g. “#2 · 3 comments”, in `--font-ui` small type), expandable by click.
+   Threads are expanded by default; collapsed state is stored per-thread in
+   `localStorage`. This is the reader-local control, distinct from the
+   author’s server-side `hidden` (whose stub renders as a non-expandable
+   “thread hidden by author” box in the same collapsed style).
 
 ### Writing
 
@@ -276,23 +281,27 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
   `--font-ui` small caps, accent-colored — visually unmistakable, and backed by
   `is_author` from the server (not client-side cosmetics).
 
-### Placement Option A — popover panel
-
-- Threads render in a floating panel anchored near the clicked highlight
-  (flipping to stay in viewport); on mobile (<64em) the same panel becomes a
-  bottom sheet.
-- An “all comments (N)” affordance near the global toggle lists every thread
-  (and orphans) and jumps to highlights.
-
-### Placement Option B — margin cards
+### Layout (margin cards — decided)
 
 - Top-level threads render as cards in the right margin column, vertically
-  aligned with their highlights, interleaved with sidenotes using the same
-  stacking algorithm as `positionSidenotes()` (cards and notes share one
-  sorted-by-anchor-position layout pass; this is the main extra complexity).
-- On mobile (<64em) the margin doesn’t exist; threads fall back to the
-  popover/bottom-sheet behaviour from Option A. (So Option B is a superset:
-  build A’s mobile path regardless.)
+  aligned with their highlights, interleaved with sidenotes in one
+  sorted-by-anchor-position layout pass that extends the stacking algorithm of
+  `positionSidenotes()` (this is the main extra layout complexity).
+- **Sidenotes keep priority and must stay readable.** Concretely: sidenotes
+  are positioned first at their preferred offsets; comment cards then fill the
+  gaps, pushed down (never up) past any sidenote they would overlap, with a
+  clear gap (≥ 12px, matching the sidenote stacking gap). Cards must be
+  visually distinct from sidenotes so the margin doesn’t read as one
+  undifferentiated column: cards get a border, background (`--bg` with
+  shadow/border vs. the sidenotes’ borderless text), and `--font-ui` chrome;
+  sidenote typography is untouched. If a stretch of margin is crowded with
+  sidenotes, the affected threads render collapsed (the per-thread compact
+  box) rather than pushing sidenotes far from their references.
+- Orphaned comments (anchor no longer matches) stack at the end of the margin
+  column under a small “on changed text” label.
+- On mobile (<64em) the margin doesn’t exist: highlights remain, and tapping
+  one opens the thread in a bottom sheet (see mockup); the global toggle
+  button behaves identically.
 
 ## Repo & deployment changes
 
@@ -322,8 +331,10 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
   reply-to-deleted/hidden, rate-limit trip, author auth fail/success,
   hide/delete, tombstone shape, OPTIONS preflight headers).
 - Browser: Playwright against `npx astro preview` at 1440px and 390px —
-  select→comment flow, thread open/close, global toggle off leaves page
-  pristine, dark mode highlight contrast, no sidenote layout regressions, and
+  select→comment flow, per-thread collapse/expand round-trip, hide-all button
+  leaves the page pristine (no cards, highlights, or toolbar), comment cards
+  never overlap sidenotes on a sidenote-heavy page
+  (`grounding-of-zetetic-norms`), dark mode highlight contrast, and
   highlights surviving a resize across the 64em breakpoint with comments open
   (sidenotes re-home; highlights must repaint).
 - Anchoring: a comment created at 390px (sidenotes inline) must resolve at
@@ -334,10 +345,9 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
 
 ## Open questions
 
-1. Placement A vs. B — pending mockups (next step).
-2. Whether the global toggle default should ever be “off” for posts with no
-   comments yet (probably moot: with zero comments the UI is invisible anyway
-   except the selection toolbar).
+None — placement (margin cards), visibility defaults (show all, sticky
+bottom-left hide-all button), and per-thread collapse behaviour were decided
+with David on 2026-06-10.
 
 ## References
 
