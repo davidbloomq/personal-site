@@ -7,7 +7,7 @@
  */
 ---
 
-<canvas id="ascii-trail" class="ascii-trail"></canvas>
+<canvas id="ascii-trail" class="ascii-trail" aria-hidden="true"></canvas>
 
 <script>
   const canvas = document.getElementById('ascii-trail') as HTMLCanvasElement;
@@ -63,11 +63,24 @@
 
   const particles: Particle[] = [];
 
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function readEnabled(): boolean {
+    try {
+      return localStorage.getItem('funCursor') === 'on';
+    } catch {
+      return false;
+    }
+  }
+
   // Off by default; the homepage "toggle fun cursor!" button flips this
-  let trailEnabled = localStorage.getItem('funCursor') === 'on';
-  window.addEventListener('fun-cursor-change', () => {
-    trailEnabled = localStorage.getItem('funCursor') === 'on';
-    if (!trailEnabled) {
+  let trailEnabled = readEnabled();
+  window.addEventListener('fun-cursor-change', (e) => {
+    const detail = (e as CustomEvent).detail;
+    trailEnabled = detail && typeof detail.on === 'boolean' ? detail.on : readEnabled();
+    if (trailEnabled) {
+      startLoop();
+    } else {
       particles.length = 0;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
@@ -103,9 +116,22 @@
     });
   }
 
-  let frameCount = 0;
+  let loopRunning = false;
+
+  function startLoop() {
+    if (loopRunning) return;
+    loopRunning = true;
+    requestAnimationFrame(frame);
+  }
 
   function frame() {
+    // Idle: nothing to draw and nothing will spawn — stop until re-enabled
+    if (!trailEnabled && particles.length === 0) {
+      loopRunning = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Spawn when moving — 1 particle per frame for a clean trail
@@ -113,7 +139,7 @@
     const dy = mouseY - prevMouseY;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (trailEnabled && mouseMoving && dist > 1) {
+    if (trailEnabled && !reducedMotion.matches && mouseMoving && dist > 1) {
       // Interpolate along the movement to fill gaps
       const steps = Math.min(Math.floor(dist / 6), 4);
       for (let s = 0; s <= steps; s++) {
@@ -159,12 +185,11 @@
 
     prevMouseX = mouseX;
     prevMouseY = mouseY;
-    frameCount++;
 
     requestAnimationFrame(frame);
   }
 
-  requestAnimationFrame(frame);
+  if (trailEnabled) startLoop();
 </script>
 
 <style>

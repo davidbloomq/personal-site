@@ -1,6 +1,7 @@
 ---
 import BaseHead from '../components/BaseHead.astro';
 import AsciiCursorTrail from '../components/AsciiCursorTrail.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
 import FormattedDate from '../components/FormattedDate.astro';
 import { getCollection } from 'astro:content';
 import { SITE_TITLE } from '../consts';
@@ -23,7 +24,7 @@ const posts = (await getCollection('blog')).sort(
 					<h1 class="feed-title">{SITE_TITLE}</h1>
 					<nav class="feed-nav">
 						<a href="/">Home</a>
-						<button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">●</button>
+						<ThemeToggle />
 					</nav>
 				</div>
 				<p class="feed-about">
@@ -46,23 +47,21 @@ const posts = (await getCollection('blog')).sort(
 		</div>
 		<script is:inline>
 		(function() {
-			var btn = document.getElementById('theme-toggle');
-			if (btn) {
-				btn.addEventListener('click', function() {
-					var current = document.documentElement.dataset.theme;
-					var next = current === 'dark' ? 'light' : 'dark';
-					document.documentElement.dataset.theme = next;
-					localStorage.setItem('theme', next);
-				});
-			}
 			var copyBtn = document.getElementById('feed-copy');
 			if (copyBtn) {
 				copyBtn.addEventListener('click', function() {
 					var url = window.location.origin + '/rss.xml';
+					function fallback() {
+						copyBtn.textContent = url;
+					}
+					if (!navigator.clipboard) {
+						fallback();
+						return;
+					}
 					navigator.clipboard.writeText(url).then(function() {
 						copyBtn.textContent = 'Copied!';
 						setTimeout(function() { copyBtn.textContent = 'Copy feed URL'; }, 2000);
-					});
+					}, fallback);
 				});
 			}
 		})();
@@ -106,19 +105,6 @@ const posts = (await getCollection('blog')).sort(
 		font-weight: 500;
 	}
 	.feed-nav a:hover {
-		color: var(--accent);
-	}
-	.theme-toggle {
-		background: none;
-		border: none;
-		cursor: pointer;
-		font-size: 0.6rem;
-		color: var(--text-muted);
-		padding: 0;
-		line-height: 1;
-		transition: color 0.15s ease-in-out;
-	}
-	.theme-toggle:hover {
 		color: var(--accent);
 	}
 	.feed-about {

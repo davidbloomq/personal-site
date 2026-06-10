@@ -49,12 +49,12 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 			<div class="sidenote-column" id="sidenote-column"></div>
 		</div>
 
-		<a href="#" class="subscribe-btn" id="subscribe-trigger">Subscribe</a>
+		<button type="button" class="subscribe-btn" id="subscribe-trigger">Subscribe</button>
 
-		<div class="subscribe-modal" id="subscribe-modal">
+		<div class="subscribe-modal" id="subscribe-modal" role="dialog" aria-modal="true" aria-label="Subscribe">
 			<div class="subscribe-backdrop" id="subscribe-backdrop"></div>
 			<div class="subscribe-modal-content">
-				<button class="subscribe-close" id="subscribe-close">&times;</button>
+				<button type="button" class="subscribe-close" id="subscribe-close" aria-label="Close">&times;</button>
 				<span class="subscribe-heading">Subscribe</span>
 				<ul class="subscribe-links">
 					<li><a href="/rss.xml">RSS</a></li>
@@ -123,12 +123,8 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 						li.appendChild(a);
 						if (!currentH3Ol) {
 							currentH3Ol = document.createElement('ol');
-							if (currentH3Li) {
-								currentH3Li.appendChild(currentH3Ol);
-							} else if (currentH2Ol) {
-								currentH2Ol.appendChild(li);
-								return;
-							}
+							const host = currentH3Li || currentH2Li || tocList;
+							host.appendChild(currentH3Ol);
 						}
 						currentH3Ol.appendChild(li);
 					}
@@ -161,16 +157,13 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 				const column = document.getElementById('sidenote-column');
 				if (!prose || !column) return;
 
-				const isDesktop = window.matchMedia('(min-width: 64em)').matches;
-				if (!isDesktop) return;
+				const notes = Array.from(prose.querySelectorAll('.sidenote'));
+				if (notes.length === 0) return;
 
-				const notes = prose.querySelectorAll('.sidenote');
-				notes.forEach((note) => {
-					column.appendChild(note);
-					note.style.display = 'block';
-					note.style.position = 'absolute';
-					note.style.width = '100%';
-				});
+				// Remember each note's inline home so it can be restored
+				// when the viewport crosses back below the breakpoint.
+				const homes = new Map(notes.map((note) => [note, note.parentElement]));
+				const mq = window.matchMedia('(min-width: 64em)');
 
 				function positionSidenotes() {
 					const gridRect = document.querySelector('.essay-grid')?.getBoundingClientRect();
@@ -193,33 +186,67 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 					});
 				}
 
-				requestAnimationFrame(() => {
+				function applyTruncation() {
 					notes.forEach((note) => {
 						const content = note.querySelector('.sidenote-content');
 						const btn = note.querySelector('.sidenote-more');
 						if (!content || !btn) return;
 
+						note.classList.remove('truncated');
 						if (content.scrollHeight > TRUNCATE_HEIGHT) {
 							note.classList.add('truncated');
 							btn.classList.add('visible');
 							btn.textContent = 'MORE \u2304';
-							btn.addEventListener('click', () => {
-								const isTruncated = note.classList.contains('truncated');
-								if (isTruncated) {
-									note.classList.remove('truncated');
-									btn.textContent = 'LESS \u2303';
-								} else {
-									note.classList.add('truncated');
-									btn.textContent = 'MORE \u2304';
-								}
-								requestAnimationFrame(() => positionSidenotes());
-							});
+							if (!btn.dataset.bound) {
+								btn.dataset.bound = '1';
+								btn.addEventListener('click', () => {
+									const isTruncated = note.classList.contains('truncated');
+									if (isTruncated) {
+										note.classList.remove('truncated');
+										btn.textContent = 'LESS \u2303';
+									} else {
+										note.classList.add('truncated');
+										btn.textContent = 'MORE \u2304';
+									}
+									requestAnimationFrame(() => positionSidenotes());
+								});
+							}
+						} else {
+							btn.classList.remove('visible');
 						}
 					});
-					positionSidenotes();
-				});
+				}
 
-				window.addEventListener('resize', () => requestAnimationFrame(() => positionSidenotes()));
+				function toDesktop() {
+					notes.forEach((note) => {
+						column.appendChild(note);
+						note.style.display = 'block';
+						note.style.position = 'absolute';
+						note.style.width = '100%';
+					});
+					requestAnimationFrame(() => {
+						applyTruncation();
+						positionSidenotes();
+					});
+				}
+
+				function toMobile() {
+					notes.forEach((note) => {
+						const home = homes.get(note);
+						if (home) home.appendChild(note);
+						note.style.display = '';
+						note.style.position = '';
+						note.style.width = '';
+						note.style.top = '';
+						note.classList.remove('truncated');
+					});
+				}
+
+				if (mq.matches) toDesktop();
+				mq.addEventListener('change', (e) => (e.matches ? toDesktop() : toMobile()));
+				window.addEventListener('resize', () => {
+					if (mq.matches) requestAnimationFrame(() => positionSidenotes());
+				});
 			}
 			setupSidenotes();
 
@@ -228,15 +255,17 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 				const modal = document.getElementById('subscribe-modal');
 				const backdrop = document.getElementById('subscribe-backdrop');
 				const closeBtn = document.getElementById('subscribe-close');
-				if (!trigger || !modal) return;
+				if (!trigger || !modal || !backdrop || !closeBtn) return;
 
-				trigger.addEventListener('click', (e) => {
-					e.preventDefault();
+				trigger.addEventListener('click', () => {
 					modal.classList.add('open');
+					closeBtn.focus();
 				});
 
 				function closeModal() {
+					if (!modal.classList.contains('open')) return;
 					modal.classList.remove('open');
+					trigger.focus();
 				}
 
 				closeBtn.addEventListener('click', closeModal);
@@ -259,6 +288,7 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 		margin: 0 auto;
 		padding: 0 var(--col-gap);
 		grid-template-areas:
+			"grid-header"
 			"header"
 			"toc"
 			"main";
@@ -362,6 +392,7 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 
 	.essay-body {
 		grid-area: main;
+		min-width: 0;
 	}
 
 	.prose {

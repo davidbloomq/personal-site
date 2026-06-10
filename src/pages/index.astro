@@ -2,6 +2,7 @@
 import BaseHead from '../components/BaseHead.astro';
 import FormattedDate from '../components/FormattedDate.astro';
 import AsciiCursorTrail from '../components/AsciiCursorTrail.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
 import { getCollection } from 'astro:content';
 import { SITE_DESCRIPTION, SITE_TITLE } from '../consts';
 
@@ -21,7 +22,7 @@ const posts = (await getCollection('blog')).sort(
 			<div class="home-shell">
 				<header class="home-header">
 					<h1 class="home-title">David Bloom</h1>
-					<button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">●</button>
+					<ThemeToggle />
 				</header>
 
 				<main class="home-main">
@@ -31,7 +32,7 @@ const posts = (await getCollection('blog')).sort(
 							I study mathematics and philosophy at Yale.
 							I write about philosophy, AI, and whatever else I find interesting.
 						</p>
-						<button class="fun-cursor-toggle" id="fun-cursor-toggle" type="button">Toggle fun cursor!</button>
+						<button class="fun-cursor-toggle" id="fun-cursor-toggle" type="button" aria-pressed="false">Toggle fun cursor!</button>
 					</section>
 
 					<section class="home-essays">
@@ -61,26 +62,28 @@ const posts = (await getCollection('blog')).sort(
 
 		<script is:inline>
 (function() {
-  var btn = document.getElementById('theme-toggle');
-  if (!btn) return;
-  btn.addEventListener('click', function() {
-    var current = document.documentElement.dataset.theme;
-    var next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    localStorage.setItem('theme', next);
-  });
-
   var funBtn = document.getElementById('fun-cursor-toggle');
   if (!funBtn) return;
+  function readOn() {
+    try {
+      return localStorage.getItem('funCursor') === 'on';
+    } catch (e) {
+      return funBtn.getAttribute('aria-pressed') === 'true';
+    }
+  }
   function renderFun(on) {
     funBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
-  renderFun(localStorage.getItem('funCursor') === 'on');
+  renderFun(readOn());
   funBtn.addEventListener('click', function() {
-    var on = localStorage.getItem('funCursor') !== 'on';
-    localStorage.setItem('funCursor', on ? 'on' : 'off');
+    var on = !readOn();
+    try {
+      localStorage.setItem('funCursor', on ? 'on' : 'off');
+    } catch (e) {
+      /* storage unavailable — toggle still works for this page view */
+    }
     renderFun(on);
-    window.dispatchEvent(new CustomEvent('fun-cursor-change'));
+    window.dispatchEvent(new CustomEvent('fun-cursor-change', { detail: { on: on } }));
   });
 })();
 		</script>
@@ -136,20 +139,6 @@ const posts = (await getCollection('blog')).sort(
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
-	}
-
-	.theme-toggle {
-		background: none;
-		border: none;
-		cursor: pointer;
-		font-size: 0.6rem;
-		color: var(--text-muted);
-		padding: 0;
-		line-height: 1;
-		transition: color 0.15s ease-in-out;
-	}
-	.theme-toggle:hover {
-		color: var(--accent);
 	}
 
 	.fun-cursor-toggle {
