@@ -22,9 +22,10 @@ per-thread visibility toggles.
 - **Placement**: decided (from mockups) — Option B, Google-Docs-style cards in
   the right margin, sharing the column with sidenotes; bottom sheet on mobile.
   Comment cards must not clash with or crowd sidenotes (see Layout).
-- **Visibility model**: all comments shown by default. A “hide all comments”
-  button makes cards and highlights disappear entirely; each thread’s “hide”
-  collapses it to a compact sidenote-like box that can be re-expanded.
+- **Visibility model**: all comments shown by default. A sticky “comments
+  on/off” button switches the whole feature off — cards and highlights
+  disappear entirely. “Hide” refers only to individual threads: it collapses
+  a thread to a compact sidenote-like box that can be re-expanded.
 
 ## Non-goals
 
@@ -242,10 +243,13 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
 3. Clicking/tapping a highlight scrolls to and focuses its margin card
    (bottom sheet on mobile); hovering/focusing a card brightens its highlight.
 4. **Global toggle**: a sticky button in the bottom-left corner, styled as the
-   mirror of the Subscribe button (bottom-right) — e.g. “Comments (N)” /
-   “Comments: hidden”. Default is **show all**. Hiding removes all comment UI:
-   cards, highlights, and the selection toolbar — the page looks exactly as it
-   does today. State in `localStorage` (`annotations:enabled`, default on).
+   mirror of the Subscribe button (bottom-right), labelled “Comments: on” /
+   “Comments: off” (may include the count, e.g. “Comments (3): on”). Default
+   is **on**. Off removes all comment UI — cards, highlights, and the
+   selection toolbar — so the page looks exactly as it does without the
+   comments feature; only the toggle button itself remains. The word “hide”
+   is reserved for the per-thread control below. State in `localStorage`
+   (`annotations:enabled`, default on).
 5. **Per-thread collapse**: each card’s “hide” control collapses the thread to
    a compact one-line box in the margin, visually akin to a truncated sidenote
    (e.g. “#2 · 3 comments”, in `--font-ui` small type), expandable by click.
@@ -331,7 +335,7 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
   reply-to-deleted/hidden, rate-limit trip, author auth fail/success,
   hide/delete, tombstone shape, OPTIONS preflight headers).
 - Browser: Playwright against `npx astro preview` at 1440px and 390px —
-  select→comment flow, per-thread collapse/expand round-trip, hide-all button
+  select→comment flow, per-thread collapse/expand round-trip, “Comments: off”
   leaves the page pristine (no cards, highlights, or toolbar), comment cards
   never overlap sidenotes on a sidenote-heavy page
   (`grounding-of-zetetic-norms`), dark mode highlight contrast, and
@@ -345,9 +349,9 @@ script, and all `localStorage` access is wrapped in try/catch in its own IIFE
 
 ## Open questions
 
-None — placement (margin cards), visibility defaults (show all, sticky
-bottom-left hide-all button), and per-thread collapse behaviour were decided
-with David on 2026-06-10.
+None — placement (margin cards), visibility model (default on, sticky
+bottom-left “comments on/off” button, per-thread “hide” collapses to an
+expandable box) were decided with David on 2026-06-10.
 
 ## References
 
