@@ -50,7 +50,12 @@ const { title, description } = Astro.props;
 <!-- Theme init (inline to prevent FOUC) -->
 <script is:inline>
 (function() {
-	var saved = localStorage.getItem('theme');
+	var saved = null;
+	try {
+		saved = localStorage.getItem('theme');
+	} catch (e) {
+		/* storage unavailable — fall back to system preference */
+	}
 	if (!saved) {
 		saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 	}

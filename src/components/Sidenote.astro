@@ -10,7 +10,7 @@ const { id } = Astro.props;
   <input type="checkbox" id={`sn-${id}`} class="sidenote-toggle" />
   <span class="sidenote" data-sidenote-id={id}>
     <span class="sidenote-content"><span class="sidenote-num">{id}</span> <slot /></span>
-    <button class="sidenote-more">MORE ∨</button>
+    <button type="button" class="sidenote-more">MORE ⌄</button>
   </span>
 </span>
 
@@ -30,6 +30,7 @@ const { id } = Astro.props;
      These styles apply once they're in the column. */
   .sidenote {
     display: block;
+    overflow-wrap: anywhere;
     font-family: var(--font-ui);
     font-size: 0.75rem;
     font-weight: 300;
