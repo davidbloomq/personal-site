@@ -17,6 +17,12 @@ Astro, KaTeX (remark-math + rehype-katex), vanilla CSS. Design tokens in `src/st
 - `public/rss.xsl` — XSL redirect from `/rss.xml` to `/feed` for browser visitors
 - `src/components/` — Sidenote, Header, ThemeToggle (shared dark-mode toggle used by Header, index, and feed — don't reintroduce inline copies), BaseHead (+ theme init script), FormattedDate (UTC getters on purpose), Definition, AsciiCursorTrail (reads `--accent` dynamically; off by default, toggled by the homepage "fun cursor" button via localStorage `funCursor` + `fun-cursor-change` event)
 - `src/content/blog/` — essay markdown/MDX files
+- `specs/` — implementation-ready feature specs (decisions marked as made with David are final — don't reopen them)
+- `later.md` — feature ideas not yet designed
+
+## Planned work
+
+- **Annotations** (`specs/annotations.md`): reader comments anchored to text highlights, Google-Docs style. Fully specced and ready to implement: Cloudflare Worker + D1 backend in a new `worker/` dir (API at `api.david-bloom.com`), frontend module in `src/scripts/annotations.js` wired into `BlogPost.astro`. The spec's anchoring and layout sections depend on the sidenote re-homing and KaTeX details below — read both before starting. Cloudflare-side setup (D1 create, DNS, secrets, Resend) needs David's account; flag anything you can't do from the sandbox.
 
 ## Writing
 
