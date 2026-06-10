@@ -62,6 +62,16 @@
   }
 
   const particles: Particle[] = [];
+
+  // Off by default; the homepage "toggle fun cursor!" button flips this
+  let trailEnabled = localStorage.getItem('funCursor') === 'on';
+  window.addEventListener('fun-cursor-change', () => {
+    trailEnabled = localStorage.getItem('funCursor') === 'on';
+    if (!trailEnabled) {
+      particles.length = 0;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  });
   let mouseX = 0;
   let mouseY = 0;
   let prevMouseX = 0;
@@ -103,7 +113,7 @@
     const dy = mouseY - prevMouseY;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (mouseMoving && dist > 1) {
+    if (trailEnabled && mouseMoving && dist > 1) {
       // Interpolate along the movement to fill gaps
       const steps = Math.min(Math.floor(dist / 6), 4);
       for (let s = 0; s <= steps; s++) {
