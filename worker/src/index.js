@@ -75,7 +75,10 @@ function corsHeaders(request, env) {
 	const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim());
 	// Any localhost origin is fine: only software on the visitor's own machine
 	// can claim it, and it keeps local dev working regardless of port.
-	const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+	// Codespaces preview origins are allowed for the same dev-preview reason —
+	// the API is public-write anyway and rate limits still apply.
+	const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+		|| /^https:\/\/[a-z0-9-]+\.app\.github\.dev$/.test(origin);
 	const headers = {
 		'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 		'Access-Control-Allow-Headers': 'Content-Type, Authorization',

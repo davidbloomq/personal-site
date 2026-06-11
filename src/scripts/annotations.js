@@ -10,10 +10,14 @@
 
 import { layoutMargin, setCardProvider } from './margin-layout.js';
 
-const API_BASE =
-	location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-		? 'http://localhost:8787'
-		: 'https://api.david-bloom.com';
+const API_BASE = (() => {
+	const { hostname } = location;
+	if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:8787';
+	// GitHub Codespaces forwards each port at <codespace>-<port>.app.github.dev
+	const codespace = hostname.match(/^(.+)-\d+(\.app\.github\.dev)$/);
+	if (codespace) return `https://${codespace[1]}-8787${codespace[2]}`;
+	return 'https://api.david-bloom.com';
+})();
 
 const MAX_SELECTION = 1000;
 const CONTEXT_CHARS = 32;
