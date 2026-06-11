@@ -73,13 +73,16 @@ async function route(request, url, env, ctx) {
 function corsHeaders(request, env) {
 	const origin = request.headers.get('Origin') || '';
 	const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim());
+	// Any localhost origin is fine: only software on the visitor's own machine
+	// can claim it, and it keeps local dev working regardless of port.
+	const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 	const headers = {
 		'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 		'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 		'Access-Control-Max-Age': '86400',
 		'Vary': 'Origin',
 	};
-	if (allowed.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
+	if (allowed.includes(origin) || isLocal) headers['Access-Control-Allow-Origin'] = origin;
 	return headers;
 }
 

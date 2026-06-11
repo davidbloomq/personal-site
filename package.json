@@ -7,9 +7,14 @@
   },
   "scripts": {
     "dev": "astro dev",
+    "dev:api": "cd worker && npm install --no-audit --no-fund && npx wrangler d1 execute comments --local --file schema.sql && npx wrangler dev",
+    "dev:full": "concurrently -k -n site,api \"npm run dev\" \"npm run dev:api\"",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   },
   "dependencies": {
     "@astrojs/mdx": "^5.0.1",

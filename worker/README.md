@@ -5,6 +5,17 @@ Backend for reader annotations on david-bloom.com essays. Spec:
 
 ## Local development
 
+Easiest: from the **repo root**, `npm install` once, then
+
+```sh
+npm run dev:full
+```
+
+boots site (http://localhost:4321) and API (http://localhost:8787) together,
+installing worker deps and applying the D1 schema automatically.
+
+Manually, the API alone:
+
 ```sh
 cd worker
 npm install
