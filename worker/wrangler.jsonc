@@ -1,0 +1,41 @@
+{
+	// Comments API for david-bloom.com (see ../specs/annotations.md).
+	// Deploy: npx wrangler deploy
+	// Local dev: npx wrangler dev  (serves http://localhost:8787 with a local D1;
+	//   apply schema first: npx wrangler d1 execute comments --local --file schema.sql)
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "comments-api",
+	"main": "src/index.js",
+	"compatibility_date": "2026-06-01",
+	"routes": [
+		{ "pattern": "api.david-bloom.com", "custom_domain": true }
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "comments",
+			// Replace with the real id from `npx wrangler d1 create comments`.
+			"database_id": "REPLACE_WITH_D1_DATABASE_ID"
+		}
+	],
+	// Per-minute limit; per-day limit is enforced via D1 (see src/index.js).
+	// Requires Wrangler >= 4.36.0. Counters are per-Cloudflare-location.
+	"ratelimits": [
+		{
+			"name": "RATE_LIMITER",
+			"namespace_id": "1001",
+			"simple": { "limit": 5, "period": 60 }
+		}
+	],
+	"vars": {
+		// Comma-separated allowed CORS origins.
+		"ALLOWED_ORIGINS": "https://david-bloom.com,http://localhost:4321",
+		// Email notification recipient/sender (used only when RESEND_API_KEY is set).
+		"NOTIFY_TO": "davidandresbloomq@gmail.com",
+		"NOTIFY_FROM": "comments@david-bloom.com"
+	}
+	// Secrets (set with `npx wrangler secret put <NAME>`):
+	//   AUTHOR_PASSPHRASE  — author-mode passphrase
+	//   IP_HASH_KEY        — HMAC key for hashing IPs
+	//   RESEND_API_KEY     — Resend API key for email notifications (optional in dev)
+}

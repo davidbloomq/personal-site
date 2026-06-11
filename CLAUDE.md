@@ -17,6 +17,15 @@ Astro, KaTeX (remark-math + rehype-katex), vanilla CSS. Design tokens in `src/st
 - `public/rss.xsl` — XSL redirect from `/rss.xml` to `/feed` for browser visitors
 - `src/components/` — Sidenote, Header, ThemeToggle (shared dark-mode toggle used by Header, index, and feed — don't reintroduce inline copies), BaseHead (+ theme init script), FormattedDate (UTC getters on purpose), Definition, AsciiCursorTrail (reads `--accent` dynamically; off by default, toggled by the homepage "fun cursor" button via localStorage `funCursor` + `fun-cursor-change` event)
 - `src/content/blog/` — essay markdown/MDX files
+- `src/scripts/margin-layout.js` — the single margin-stacking pass shared by sidenotes and annotation cards (sub-pass 1: sidenotes, push-down rule; sub-pass 2: cards in the gaps, never displacing sidenotes). Do not fork this algorithm.
+- `src/scripts/annotations.js` + `src/styles/annotations.css` — reader comments anchored to text highlights (see `specs/annotations.md`). Inits from `BlogPost.astro`; no-op if the API is unreachable. Talks to `api.david-bloom.com` in prod, `localhost:8787` when served from localhost.
+- `worker/` — Cloudflare Worker + D1 comments API behind annotations. Own `package.json`/`wrangler.jsonc`; deployed separately with Wrangler (see `worker/README.md` for local dev and the one-time Cloudflare setup)
+- `specs/` — implementation-ready feature specs (decisions marked as made with David are final — don't reopen them)
+- `later.md` — feature ideas not yet designed
+
+## Planned work
+
+- **Annotations** (`specs/annotations.md`): implemented (Worker in `worker/`, frontend in `src/scripts/annotations.js`). Outstanding before it works in prod: the one-time Cloudflare provisioning in `worker/README.md` (D1 create + id into `wrangler.jsonc`, secrets, `wrangler deploy`, Resend domain verification) — needs David's account.
 
 ## Writing
 
@@ -42,7 +51,8 @@ GitHub repo: `davidbloomq/personal-site` (public). Pushes to `main` auto-deploy 
 
 - Nothing is live until it's on `main`; work pushed only to a feature branch is invisible on david-bloom.com. David has asked "why don't I see it on the site" when work sat on a branch — say explicitly when something is not yet deployed.
 - The essay grid in `BlogPost.astro` defines `grid-template-areas` twice (mobile default + ≥64em). Any area used by a child (e.g. `grid-header`) must appear in BOTH templates — a missing area creates phantom implicit columns and once silently crushed mobile essay text to 169px wide.
-- Sidenote behavior (margin column vs inline) is set up in `BlogPost.astro`'s `setupSidenotes()` and must keep working when the viewport resizes across the 64em breakpoint — it re-homes the notes on `matchMedia` change; don't regress this to a load-time-only check.
+- Sidenote behavior (margin column vs inline) is set up in `BlogPost.astro`'s `setupSidenotes()` and must keep working when the viewport resizes across the 64em breakpoint — it re-homes the notes on `matchMedia` change; don't regress this to a load-time-only check. Stacking itself lives in `src/scripts/margin-layout.js`; annotation highlights also re-resolve on that same breakpoint change (annotations.js registers its listener after setupSidenotes — keep that init order).
+- Local-stack testing of annotations: `cd worker && npx wrangler dev` alongside `npx astro preview`; apply `worker/schema.sql` with `--local` first. `grounding-of-zetetic-norms` currently has NO sidenotes — `why-im-a-dualist` is the sidenote essay for layout-interaction tests.
 - Wrap all `localStorage` access in try/catch (Safari "Block all cookies" throws), and don't let one feature's init failure share an IIFE with another's.
 - A `npx astro build` passing says nothing about layout. For visual changes, verify in a real browser at 1440px and 390px. In the cloud sandbox, Playwright lives at `/opt/node22/lib/node_modules/playwright` (import by absolute path); david-bloom.com itself is NOT reachable from the sandbox network — use `npx astro preview` against the local build.
 - Run `npm install` before the first `npx astro build` in a fresh sandbox — without local node_modules the build fails on `@astrojs/mdx`.
