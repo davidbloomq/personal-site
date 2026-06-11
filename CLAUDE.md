@@ -37,8 +37,10 @@ Astro, KaTeX (remark-math + rehype-katex), vanilla CSS. Design tokens in `src/st
   drift in `BlogPost.astro`, `package.json`, `astro.config.mjs`, and this
   file if they've changed since), re-verify per the spec's verification plan,
   then do the Cloudflare provisioning in `worker/README.md`. Don't
-  re-implement from scratch — the archived code already handles the
-  anchoring/KaTeX/breakpoint subtleties in the notes below.
+  re-implement from scratch — the archived code already handles the hard
+  parts: anchors that survive the sidenote re-homing across the 64em
+  breakpoint, KaTeX's hidden MathML duplicate, and orphaning when essay
+  text changes (all documented in the archived spec).
 
 ## Writing
 
@@ -68,3 +70,4 @@ GitHub repo: `davidbloomq/personal-site` (public). Pushes to `main` auto-deploy 
 - Wrap all `localStorage` access in try/catch (Safari "Block all cookies" throws), and don't let one feature's init failure share an IIFE with another's.
 - A `npx astro build` passing says nothing about layout. For visual changes, verify in a real browser at 1440px and 390px. In the cloud sandbox, Playwright lives at `/opt/node22/lib/node_modules/playwright` (import by absolute path); david-bloom.com itself is NOT reachable from the sandbox network — use `npx astro preview` against the local build.
 - Run `npm install` before the first `npx astro build` in a fresh sandbox — without local node_modules the build fails on `@astrojs/mdx`.
+- Despite being the reference post format, `grounding-of-zetetic-norms` currently has NO sidenotes — `why-im-a-dualist` is the essay with sidenotes, so use it for any sidenote-layout testing.
