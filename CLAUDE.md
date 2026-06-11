@@ -17,6 +17,28 @@ Astro, KaTeX (remark-math + rehype-katex), vanilla CSS. Design tokens in `src/st
 - `public/rss.xsl` — XSL redirect from `/rss.xml` to `/feed` for browser visitors
 - `src/components/` — Sidenote, Header, ThemeToggle (shared dark-mode toggle used by Header, index, and feed — don't reintroduce inline copies), BaseHead (+ theme init script), FormattedDate (UTC getters on purpose), Definition, AsciiCursorTrail (reads `--accent` dynamically; off by default, toggled by the homepage "fun cursor" button via localStorage `funCursor` + `fun-cursor-change` event)
 - `src/content/blog/` — essay markdown/MDX files
+- `later.md` — feature ideas not yet designed
+
+## Retired features
+
+- **Annotations** (reader comments anchored to text highlights): fully
+  implemented and briefly live on 2026-06-11, then retired the same day at
+  David's request — before the Cloudflare side (D1, secrets,
+  `api.david-bloom.com`) was ever provisioned, so no production data or
+  infrastructure exists. The complete, working, browser-tested implementation
+  is preserved on branch **`archive/annotations`**: the spec
+  (`specs/annotations.md`, including the late own-comment edit/delete
+  decision), Worker + D1 API in `worker/` (own README with the Cloudflare
+  setup checklist), frontend `src/scripts/annotations.js` +
+  `src/styles/annotations.css`, the shared `src/scripts/margin-layout.js`
+  (sidenote-stacking refactor — `main` still uses the original inline
+  `positionSidenotes()`), and an `npm run dev:full` local-stack script.
+  To restore: `git merge archive/annotations` on a feature branch (expect
+  drift in `BlogPost.astro`, `package.json`, `astro.config.mjs`, and this
+  file if they've changed since), re-verify per the spec's verification plan,
+  then do the Cloudflare provisioning in `worker/README.md`. Don't
+  re-implement from scratch — the archived code already handles the
+  anchoring/KaTeX/breakpoint subtleties in the notes below.
 
 ## Writing
 

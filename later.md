@@ -4,6 +4,8 @@ Ideas for future features. One entry per feature; enough detail that it can be p
 
 ## Annotations (inline comments on posts)
 
+**Status: built, then retired (2026-06-11).** A complete working implementation — spec, Cloudflare Worker + D1 API, frontend — is archived on branch `archive/annotations`; see "Retired features" in CLAUDE.md for how to bring it back. The notes below are the original idea, kept for context.
+
 Readers can comment on essays by highlighting a portion of text and attaching a comment to it, Google-Docs style.
 
 - **Highlight-to-comment**: select text in a post → option to write a comment anchored to that selection.
