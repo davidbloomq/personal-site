@@ -4,7 +4,6 @@ import BaseHead from '../components/BaseHead.astro';
 import FormattedDate from '../components/FormattedDate.astro';
 import Header from '../components/Header.astro';
 import AsciiCursorTrail from '../components/AsciiCursorTrail.astro';
-import '../styles/annotations.css';
 
 type Props = CollectionEntry<'blog'>['data'];
 
@@ -65,9 +64,6 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 		</div>
 
 		<script>
-			import { layoutMargin } from '../scripts/margin-layout.js';
-			import initAnnotations from '../scripts/annotations.js';
-
 			function buildTOC() {
 				const prose = document.querySelector('.prose');
 				const tocList = document.getElementById('toc-list');
@@ -169,9 +165,26 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 				const homes = new Map(notes.map((note) => [note, note.parentElement]));
 				const mq = window.matchMedia('(min-width: 64em)');
 
-				// Sidenote stacking lives in the shared margin-layout pass
-				// (src/scripts/margin-layout.js), which annotations.js also
-				// uses — there must be exactly one stacking implementation.
+				function positionSidenotes() {
+					const gridRect = document.querySelector('.essay-grid')?.getBoundingClientRect();
+					const colRect = column.getBoundingClientRect();
+					if (!gridRect) return;
+					const colOffsetTop = colRect.top - gridRect.top;
+					let lastBottom = 0;
+
+					notes.forEach((note) => {
+						const id = note.getAttribute('data-sidenote-id');
+						const ref = document.querySelector(`label[for="sn-${id}"]`);
+						if (!ref) return;
+
+						const refRect = ref.getBoundingClientRect();
+						let targetTop = (refRect.top - gridRect.top) - colOffsetTop;
+						if (targetTop < lastBottom) targetTop = lastBottom;
+
+						note.style.top = targetTop + 'px';
+						lastBottom = targetTop + note.offsetHeight + 12;
+					});
+				}
 
 				function applyTruncation() {
 					notes.forEach((note) => {
@@ -195,7 +208,7 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 										note.classList.add('truncated');
 										btn.textContent = 'MORE \u2304';
 									}
-									requestAnimationFrame(() => layoutMargin());
+									requestAnimationFrame(() => positionSidenotes());
 								});
 							}
 						} else {
@@ -213,7 +226,7 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 					});
 					requestAnimationFrame(() => {
 						applyTruncation();
-						layoutMargin();
+						positionSidenotes();
 					});
 				}
 
@@ -230,21 +243,12 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 				}
 
 				if (mq.matches) toDesktop();
-				// Registered before annotations.js's listener on the same query,
-				// so sidenotes are re-homed before highlights repaint.
 				mq.addEventListener('change', (e) => (e.matches ? toDesktop() : toMobile()));
 				window.addEventListener('resize', () => {
-					if (mq.matches) requestAnimationFrame(() => layoutMargin());
+					if (mq.matches) requestAnimationFrame(() => positionSidenotes());
 				});
 			}
 			setupSidenotes();
-
-			// Annotations init failure must not take down the scripts above.
-			try {
-				initAnnotations();
-			} catch (e) {
-				console.error('annotations init failed', e);
-			}
 
 			function setupSubscribeModal() {
 				const trigger = document.getElementById('subscribe-trigger');
@@ -275,7 +279,7 @@ const { title, description, pubDate, updatedDate } = Astro.props;
 	</body>
 </html>
 
-<!-- Style map: see CLAUDE.md. Essay layout uses --page-width/--side-col/--col-gap below. -->
+<!-- Style map: see AGENTS.md. Essay layout uses --page-width/--side-col/--col-gap below. -->
 <style>
 	.essay-grid {
 		display: grid;

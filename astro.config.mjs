@@ -14,9 +14,4 @@ export default defineConfig({
 		remarkPlugins: [remarkMath],
 		rehypePlugins: [rehypeKatex],
 	},
-	vite: {
-		// Let the dev server answer through GitHub Codespaces port forwarding
-		// (Vite's DNS-rebinding protection blocks unknown hosts by default).
-		server: { allowedHosts: ['.app.github.dev'] },
-	},
 });
