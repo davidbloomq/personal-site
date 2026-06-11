@@ -3,12 +3,17 @@
  * See ../specs/annotations.md for the full spec.
  *
  * Endpoints (all JSON):
- *   GET    /v1/comments?post=<slug>      visible comments + numbers for a post
+ *   GET    /v1/comments?post=<slug>[&key=<commenterKey>]
+ *            visible comments + numbers for a post; with `key`, rows posted
+ *            by that key carry `mine: true`
  *   POST   /v1/comments                  create comment or reply
+ *   PATCH  /v1/comments/:id              edit own comment (commenterKey must match)
  *   POST   /v1/author/login              verify passphrase
- *   DELETE /v1/comments/:id[?thread=1]   soft-delete a comment (or whole thread)
+ *   DELETE /v1/comments/:id[?thread=1][?key=<commenterKey>]
+ *            soft-delete: author passphrase deletes anything (thread=1 for a
+ *            whole thread); otherwise a matching commenterKey deletes own
  *   POST   /v1/comments/:id/hide         hide a thread (server-side, everyone)
- *   POST   /v1/comments/:id/unhide       unhide a thread
+ *   POST   /v1/comments/:id/unhide      unhide a thread
  */
 
 const SLUG_RE = /^[a-z0-9-]{1,128}$/;
@@ -60,6 +65,9 @@ async function route(request, url, env, ctx) {
 		if (!action && method === 'DELETE') {
 			return deleteComment(request, url, env, id);
 		}
+		if (!action && method === 'PATCH') {
+			return editComment(request, env, id);
+		}
 		if (action && method === 'POST') {
 			return setHidden(request, env, id, action === '/hide' ? 1 : 0);
 		}
@@ -80,7 +88,7 @@ function corsHeaders(request, env) {
 	const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
 		|| /^https:\/\/[a-z0-9-]+\.app\.github\.dev$/.test(origin);
 	const headers = {
-		'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+		'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
 		'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 		'Access-Control-Max-Age': '86400',
 		'Vary': 'Origin',
@@ -157,8 +165,8 @@ async function readJsonBody(request) {
 
 /* ---------- GET /v1/comments ---------- */
 
-function rowToItem(row) {
-	return {
+function rowToItem(row, viewerKey) {
+	const item = {
 		id: row.id,
 		parentId: row.parent_id,
 		anchor: row.anchor_json ? JSON.parse(row.anchor_json) : null,
@@ -167,12 +175,17 @@ function rowToItem(row) {
 		number: row.number ?? null,
 		isAuthor: !!row.is_author,
 		createdAt: row.created_at,
+		editedAt: row.edited_at || null,
 	};
+	if (viewerKey && row.commenter_key === viewerKey) item.mine = true;
+	return item;
 }
 
 async function getComments(url, env) {
 	const slug = url.searchParams.get('post') || '';
 	if (!SLUG_RE.test(slug)) return json({ error: 'bad post slug' }, 400);
+	const viewerKey = url.searchParams.get('key') || null;
+	if (viewerKey && !/^[0-9a-f]{8,64}$/.test(viewerKey)) return json({ error: 'bad key' }, 400);
 
 	const { results } = await env.DB.prepare(
 		`SELECT c.*, n.number FROM comments c
@@ -226,7 +239,7 @@ async function getComments(url, env) {
 			}
 			continue;
 		}
-		comments.push(rowToItem(row));
+		comments.push(rowToItem(row, viewerKey));
 		total++;
 	}
 
@@ -332,6 +345,7 @@ async function createComment(request, env, ctx) {
 			id, parentId: parentId || null,
 			anchor: parentId ? null : { exact: anchor.exact, prefix: anchor.prefix, suffix: anchor.suffix, charOffset: anchor.charOffset },
 			body, name: trimmedName || null, number, isAuthor, createdAt,
+			editedAt: null, mine: true,
 		},
 	}, 201);
 }
@@ -356,9 +370,19 @@ async function authorLogin(request, env) {
 }
 
 async function deleteComment(request, url, env, id) {
-	if (!(await isAuthorRequest(request, env))) return json({ error: 'unauthorized' }, 401);
 	const row = await env.DB.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
 	if (!row) return json({ error: 'not found' }, 404);
+
+	// Author passphrase deletes anything; otherwise a matching commenterKey
+	// (the poster's own browser secret) deletes the poster's own comment.
+	const isAuthor = await isAuthorRequest(request, env);
+	if (!isAuthor) {
+		const key = url.searchParams.get('key') || '';
+		const ownsIt = /^[0-9a-f]{8,64}$/.test(key) && (await safeEqual(key, row.commenter_key));
+		if (!ownsIt) return json({ error: 'unauthorized' }, 401);
+		await env.DB.prepare('UPDATE comments SET deleted = 1 WHERE id = ?').bind(id).run();
+		return json({ ok: true });
+	}
 
 	if (url.searchParams.get('thread') === '1') {
 		await env.DB.prepare(
@@ -373,6 +397,30 @@ async function deleteComment(request, url, env, id) {
 		await env.DB.prepare('UPDATE comments SET deleted = 1 WHERE id = ?').bind(id).run();
 	}
 	return json({ ok: true });
+}
+
+async function editComment(request, env, id) {
+	const { body: payload, error } = await readJsonBody(request);
+	if (error) return json({ error }, 400);
+	const { body, commenterKey } = payload;
+	if (typeof body !== 'string' || body.trim().length === 0) return json({ error: 'empty body' }, 400);
+	if (body.length > MAX_BODY) return json({ error: 'body too long' }, 400);
+	if (typeof commenterKey !== 'string' || !/^[0-9a-f]{8,64}$/.test(commenterKey))
+		return json({ error: 'bad commenterKey' }, 400);
+
+	const row = await env.DB.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
+	if (!row || row.deleted) return json({ error: 'not found' }, 404);
+	if (!(await safeEqual(commenterKey, row.commenter_key))) return json({ error: 'unauthorized' }, 401);
+	const root = await rootRow(env, row);
+	if (root.hidden) return json({ error: 'thread hidden' }, 403);
+
+	const ip = clientIp(request);
+	if (await rateLimited(env, `comment:${ip}`)) return json({ error: 'rate limited' }, 429);
+
+	const editedAt = new Date().toISOString();
+	await env.DB.prepare('UPDATE comments SET body = ?, edited_at = ? WHERE id = ?')
+		.bind(body, editedAt, id).run();
+	return json({ ok: true, editedAt });
 }
 
 async function setHidden(request, env, id, hidden) {

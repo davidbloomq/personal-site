@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS comments (
   is_author     INTEGER NOT NULL DEFAULT 0,
   hidden        INTEGER NOT NULL DEFAULT 0, -- author-hidden (thread stays, content suppressed)
   deleted       INTEGER NOT NULL DEFAULT 0, -- soft delete
-  created_at    TEXT NOT NULL              -- ISO 8601
+  created_at    TEXT NOT NULL,             -- ISO 8601
+  edited_at     TEXT                       -- ISO 8601; NULL if never edited
 );
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_slug, created_at);
 CREATE INDEX IF NOT EXISTS idx_comments_ip ON comments(ip_hash, created_at);

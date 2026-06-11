@@ -32,12 +32,19 @@ refers to the first two.
 - **Visibility model**: all comments shown by default; a sticky bottom-left
   "comments on/off" button (default on) and per-thread reader collapse, as
   defined above. Details in Reading.
+- **Own-comment edit/delete** (decided with David 2026-06-11, superseding the
+  earlier non-goal): readers can edit and delete their own comments.
+  "Own" = same `commenterKey` (so same browser/device — consistent with the
+  no-accounts model). Edits set `edited_at`, shown as "(edited)"; deletes are
+  the same soft delete the author uses (tombstone if replies exist). The
+  selection button label is "Comment" (no emoji).
 
 ## Non-goals
 
 - No accounts, profiles, logins, or emails for readers.
-- No likes/votes, editing of posted comments, or markdown in comments
-  (plain text only; URLs not auto-linked in v1).
+- No likes/votes or markdown in comments (plain text only; URLs not
+  auto-linked in v1). (Editing was a non-goal in the original draft;
+  own-comment edit/delete was added by decision on 2026-06-11 — see above.)
 - No pre-moderation queue (rejected: kills conversational feel).
 - No comments on the homepage or /feed — essays only.
 
@@ -75,7 +82,8 @@ CREATE TABLE comments (
   is_author     INTEGER NOT NULL DEFAULT 0,
   hidden        INTEGER NOT NULL DEFAULT 0, -- author-hidden (thread stays, content suppressed)
   deleted       INTEGER NOT NULL DEFAULT 0, -- soft delete
-  created_at    TEXT NOT NULL              -- ISO 8601
+  created_at    TEXT NOT NULL,             -- ISO 8601
+  edited_at     TEXT                       -- ISO 8601; NULL if never edited
 );
 CREATE INDEX idx_comments_post ON comments(post_slug, created_at);
 CREATE INDEX idx_comments_ip ON comments(ip_hash, created_at);
@@ -177,10 +185,11 @@ headers `Content-Type, Authorization`, with a long `Access-Control-Max-Age`.
 
 | Method & path | Auth | Purpose |
 | --- | --- | --- |
-| `GET /v1/comments?post=<slug>` | none | Visible comments + numbers for a post |
+| `GET /v1/comments?post=<slug>&key=<commenterKey>` | none | Visible comments + numbers for a post; rows posted by `key` carry `mine: true` |
 | `POST /v1/comments` | none | Create comment or reply |
+| `PATCH /v1/comments/:id` | commenterKey in body | Edit own comment (sets `edited_at`) |
 | `POST /v1/author/login` | passphrase | Verify passphrase, returns ok (client then stores it) |
-| `DELETE /v1/comments/:id` | passphrase header | Soft-delete a comment (or whole thread via `?thread=1`) |
+| `DELETE /v1/comments/:id` | passphrase header, or own `?key=` | Author: soft-delete anything (whole thread via `?thread=1`). Reader: soft-delete own comment via matching `?key=<commenterKey>` |
 | `POST /v1/comments/:id/hide` | passphrase header | Set `hidden = 1` on a thread |
 | `POST /v1/comments/:id/unhide` | passphrase header | Set `hidden = 0` |
 
@@ -287,7 +296,7 @@ feature's init failure must not take down another's). Its relationship to
 
 ### Writing
 
-1. Reader selects text in `.prose` → small floating "💬 Comment" button appears
+1. Reader selects text in `.prose` → small floating "Comment" button appears
    near the selection (mouseup/selectionchange; also works for touch via
    `selectionchange` debounce).
 2. Clicking it opens a compose box: textarea + optional "Name" field

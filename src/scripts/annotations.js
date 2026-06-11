@@ -491,7 +491,7 @@ export default function initAnnotations() {
 
 	async function refetch() {
 		try {
-			const data = await api(`/v1/comments?post=${slug}`);
+			const data = await api(`/v1/comments?post=${slug}&key=${state.commenterKey}`);
 			state.total = data.total;
 			state.truncated = data.truncated;
 			const open = new Map(state.threads.map((t) => [t.id, t]));
@@ -544,8 +544,87 @@ export default function initAnnotations() {
 					d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })));
 			}
 		}
+		if (item.editedAt) meta.appendChild(el('span', 'ann-date', '(edited)'));
 		block.appendChild(meta);
-		block.appendChild(el('p', 'ann-body', item.body));
+
+		const rerender = () => { renderMargin(); renderSheetIfOpen(); };
+
+		if (item._editing) {
+			const wrap = el('div', 'ann-compose');
+			const ta = el('textarea');
+			ta.value = item._editDraft != null ? item._editDraft : item.body;
+			ta.addEventListener('input', () => { item._editDraft = ta.value; });
+			wrap.appendChild(ta);
+			const row = el('div', 'ann-compose-row');
+			row.appendChild(el('span'));
+			const save = el('button', 'ann-post-btn', item._editPosting ? 'Saving…' : 'Save');
+			save.type = 'button';
+			save.disabled = !!item._editPosting;
+			save.addEventListener('click', async () => {
+				const text = ta.value;
+				if (!text.trim() || item._editPosting) return;
+				item._editPosting = true;
+				item._editError = null;
+				rerender();
+				try {
+					const res = await api(`/v1/comments/${item.id}`, {
+						method: 'PATCH',
+						body: { body: text, commenterKey: state.commenterKey },
+					});
+					item.body = text;
+					item.editedAt = res.editedAt;
+					item._editing = false;
+					item._editDraft = null;
+				} catch {
+					item._editError = "couldn't save — try again";
+				}
+				item._editPosting = false;
+				rerender();
+			});
+			row.appendChild(save);
+			wrap.appendChild(row);
+			if (item._editError) wrap.appendChild(el('div', 'ann-error', item._editError));
+			block.appendChild(wrap);
+		} else {
+			block.appendChild(el('p', 'ann-body', item.body));
+		}
+
+		if (item.mine) {
+			const row = el('div', 'ann-actions');
+			const editBtn = el('button', 'ann-link-btn', item._editing ? 'Cancel' : 'Edit');
+			editBtn.type = 'button';
+			editBtn.addEventListener('click', () => {
+				item._editing = !item._editing;
+				item._editDraft = item.body;
+				item._editError = null;
+				item._confirmDelete = false;
+				rerender();
+			});
+			row.appendChild(editBtn);
+			// In author mode the moderation row below already offers Delete.
+			if (!state.passphrase) {
+				const delBtn = el('button', 'ann-link-btn', item._confirmDelete ? 'Confirm delete?' : 'Delete');
+				delBtn.type = 'button';
+				delBtn.addEventListener('click', async () => {
+					if (!item._confirmDelete) {
+						item._confirmDelete = true;
+						rerender();
+						return;
+					}
+					try {
+						await api(`/v1/comments/${item.id}?key=${state.commenterKey}`, { method: 'DELETE' });
+						await refetch();
+					} catch {
+						item._confirmDelete = false;
+						item._editError = "couldn't delete — try again";
+						rerender();
+					}
+				});
+				row.appendChild(delBtn);
+			}
+			block.appendChild(row);
+			if (item._editError && !item._editing) block.appendChild(el('div', 'ann-error', item._editError));
+		}
 
 		if (state.passphrase) {
 			const row = el('div', 'ann-author-row');
@@ -801,7 +880,7 @@ export default function initAnnotations() {
 		};
 
 		if (!toolbarEl) {
-			toolbarEl = el('button', 'annotation-toolbar', '\u{1F4AC} Comment');
+			toolbarEl = el('button', 'annotation-toolbar', 'Comment');
 			toolbarEl.type = 'button';
 			// mousedown so the click doesn't clear the selection first
 			toolbarEl.addEventListener('mousedown', (e) => e.preventDefault());
@@ -1060,7 +1139,7 @@ export default function initAnnotations() {
 	(async () => {
 		let data;
 		try {
-			data = await api(`/v1/comments?post=${slug}`);
+			data = await api(`/v1/comments?post=${slug}&key=${state.commenterKey}`);
 		} catch {
 			return; // API unreachable: feature is a no-op, page pristine
 		}
