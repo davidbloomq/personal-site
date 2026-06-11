@@ -18,7 +18,7 @@ Astro, KaTeX (remark-math + rehype-katex), vanilla CSS. Design tokens in `src/st
 - `src/components/` — Sidenote, Header, ThemeToggle (shared dark-mode toggle used by Header, index, and feed — don't reintroduce inline copies), BaseHead (+ theme init script), FormattedDate (UTC getters on purpose), Definition, AsciiCursorTrail (reads `--accent` dynamically; off by default, toggled by the homepage "fun cursor" button via localStorage `funCursor` + `fun-cursor-change` event)
 - `src/content/blog/` — essay markdown/MDX files
 - `later.md` — feature ideas not yet designed
-- `docs/` — non-instructions archive: homepage mockups, historical plans/design docs (`superpowers/`), and `retired-features.md` (features built then pulled, each preserved on an `archive/*` branch — read it before building anything similar)
+- `docs/retired-features.md` — features built then pulled, each preserved on an `archive/*` branch; read it before building anything similar
 
 ## Writing
 
